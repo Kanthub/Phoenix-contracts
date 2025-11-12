@@ -6,32 +6,19 @@ import "../interfaces/IrPUSD.sol";
 contract ReferralRewardManagerStorage {
     /* ========== Events ========== */
 
-    event RewardAdded(
-        address indexed user,
-        uint256 amount,
-        address indexed manager
-    );
-    event RewardReduced(
-        address indexed user,
-        uint256 amount,
-        address indexed manager
-    );
+    event RewardAdded(address indexed user, uint256 amount, address indexed manager);
+    event RewardReduced(address indexed user, uint256 amount, address indexed manager);
     event RewardSet(address indexed user, uint256 oldAmount, uint256 newAmount);
     event RewardCleared(address indexed user, uint256 amount);
     event RewardClaimed(address indexed user, uint256 amount);
     event ReferrerSet(address indexed user, address indexed referrer);
     event RewardPoolFunded(address indexed funder, uint256 amount);
-    event ConfigUpdated(
-        uint256 minClaimAmount,
-        uint256 maxRewardPerUser,
-        uint256 maxReferralsPerUser
-    );
+    event ConfigUpdated(uint256 minClaimAmount, uint256 maxRewardPerUser, uint256 maxReferralsPerUser);
 
     /* ========== Role Definitions ========== */
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
-    bytes32 public constant REWARD_MANAGER_ROLE =
-        keccak256("REWARD_MANAGER_ROLE"); // Manage reward distribution
+    bytes32 public constant REWARD_MANAGER_ROLE = keccak256("REWARD_MANAGER_ROLE"); // Manage reward distribution
     bytes32 public constant FUND_MANAGER_ROLE = keccak256("FUND_MANAGER_ROLE"); // Manage fund deposits
 
     /* ========== State Variables ========== */

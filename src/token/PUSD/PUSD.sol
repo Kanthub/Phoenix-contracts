@@ -47,10 +47,7 @@ contract PUSD is
      * Once MINTER_ROLE is granted, minterRoleLocked will be set to true,
      * after which no one (including DEFAULT_ADMIN_ROLE) can grant or revoke MINTER_ROLE again
      */
-    function grantRole(
-        bytes32 role,
-        address account
-    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function grantRole(bytes32 role, address account) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (role == MINTER_ROLE) {
             require(!minterRoleLocked, "PUSD: MINTER_ROLE permanently locked");
 
@@ -75,10 +72,7 @@ contract PUSD is
      * @dev Override revokeRole function to prevent revoking locked MINTER_ROLE
      * Even DEFAULT_ADMIN_ROLE cannot revoke a locked MINTER_ROLE
      */
-    function revokeRole(
-        bytes32 role,
-        address account
-    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function revokeRole(bytes32 role, address account) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (role == MINTER_ROLE && minterRoleLocked) {
             revert("PUSD: Cannot revoke locked MINTER_ROLE");
         }
@@ -98,19 +92,13 @@ contract PUSD is
         super.renounceRole(role, account);
     }
 
-    function mint(
-        address to,
-        uint256 amount
-    ) external onlyRole(MINTER_ROLE) whenNotPaused {
+    function mint(address to, uint256 amount) external onlyRole(MINTER_ROLE) whenNotPaused {
         require(totalSupply() + amount <= cap, "PUSD: cap exceeded");
         _mint(to, amount);
         emit Minted(to, amount, msg.sender);
     }
 
-    function burn(
-        address from,
-        uint256 amount
-    ) external onlyRole(MINTER_ROLE) whenNotPaused {
+    function burn(address from, uint256 amount) external onlyRole(MINTER_ROLE) whenNotPaused {
         _burn(from, amount);
         emit Burned(from, amount, msg.sender);
     }
@@ -136,9 +124,7 @@ contract PUSD is
     /**
      * @dev Upgrade authorization check - only admin can upgrade
      */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
         // Admin permission is sufficient, no additional verification needed
     }
 }

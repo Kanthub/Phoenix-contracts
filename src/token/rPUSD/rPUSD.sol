@@ -35,10 +35,7 @@ contract rPUSD is
     event RewardRealized(address indexed user, uint256 amount);
     event RewardSkipped(address indexed user, uint256 amount, string reason);
     event APYUpdated(uint256 indexed newActiveAPY);
-    event RewardManagerRoleLocked(
-        address indexed manager,
-        address indexed admin
-    );
+    event RewardManagerRoleLocked(address indexed manager, address indexed admin);
 
     /* ========== Constant Definitions ========== */
     uint256 private constant BASIS_POINTS = 10000; // APY basis points calculation
@@ -65,10 +62,7 @@ contract rPUSD is
      * @param _admin Administrator address
      * @param _activeAPY Initial active annual percentage yield (basis points)
      */
-    function initialize(
-        address _admin,
-        uint256 _activeAPY
-    ) external initializer {
+    function initialize(address _admin, uint256 _activeAPY) external initializer {
         require(_admin != address(0), "Invalid admin address");
         require(_activeAPY > 0, "APY must be positive"); // Prevent 0% initialization
         require(_activeAPY <= MAX_APY, "APY too high"); // Maximum 50%
@@ -97,15 +91,9 @@ contract rPUSD is
      * Once REWARD_MANAGER_ROLE is granted, rewardManagerRoleLocked will be set to true,
      * after which no one (including DEFAULT_ADMIN_ROLE) can grant or revoke REWARD_MANAGER_ROLE again
      */
-    function grantRole(
-        bytes32 role,
-        address account
-    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function grantRole(bytes32 role, address account) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (role == REWARD_MANAGER_ROLE) {
-            require(
-                !rewardManagerRoleLocked,
-                "rPUSD: REWARD_MANAGER_ROLE permanently locked"
-            );
+            require(!rewardManagerRoleLocked, "rPUSD: REWARD_MANAGER_ROLE permanently locked");
 
             // Check if role is already granted (for upgrade compatibility)
             bool alreadyHasRole = hasRole(role, account);
@@ -128,10 +116,7 @@ contract rPUSD is
      * @dev Override revokeRole function to prevent revoking locked REWARD_MANAGER_ROLE
      * Even DEFAULT_ADMIN_ROLE cannot revoke a locked REWARD_MANAGER_ROLE
      */
-    function revokeRole(
-        bytes32 role,
-        address account
-    ) public override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function revokeRole(bytes32 role, address account) public override onlyRole(DEFAULT_ADMIN_ROLE) {
         if (role == REWARD_MANAGER_ROLE && rewardManagerRoleLocked) {
             revert("rPUSD: Cannot revoke locked REWARD_MANAGER_ROLE");
         }
@@ -154,9 +139,7 @@ contract rPUSD is
     /**
      * @dev Upgrade authorization check
      */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(UPGRADER_ROLE) {}
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(UPGRADER_ROLE) {}
 
     /**
      * @dev Override decimals function, fixed to 6 decimal places
@@ -190,9 +173,7 @@ contract rPUSD is
      * @dev Internal function: Calculate user active rewards
      * @dev Calculate rewards based on user's minted token balance
      */
-    function _calculateActiveReward(
-        address user
-    ) internal view returns (uint256) {
+    function _calculateActiveReward(address user) internal view returns (uint256) {
         // Get user's actual minted token balance
         uint256 userBalance = super.balanceOf(user);
         if (userBalance == 0) return 0;
@@ -214,8 +195,7 @@ contract rPUSD is
 
         // Optimized calculation: Reduce division operations, improve precision
         // reward = balance * APY% * timeElapsed / (365 days * 10000)
-        uint256 reward = (userBalance * globalActiveAPY * timeElapsed) /
-            (SECONDS_PER_YEAR * BASIS_POINTS);
+        uint256 reward = (userBalance * globalActiveAPY * timeElapsed) / (SECONDS_PER_YEAR * BASIS_POINTS);
 
         return reward;
     }
@@ -227,10 +207,7 @@ contract rPUSD is
      * @param to Recipient address
      * @param amount Amount to mint
      */
-    function mint(
-        address to,
-        uint256 amount
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function mint(address to, uint256 amount) external onlyRole(REWARD_MANAGER_ROLE) {
         require(amount > 0, "Amount must be positive");
         _mint(to, amount);
     }
@@ -240,10 +217,7 @@ contract rPUSD is
      * @param from Address to burn from
      * @param amount Amount to burn
      */
-    function burn(
-        address from,
-        uint256 amount
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function burn(address from, uint256 amount) external onlyRole(REWARD_MANAGER_ROLE) {
         require(amount > 0, "Amount must be positive");
         _burn(from, amount);
     }
@@ -279,11 +253,7 @@ contract rPUSD is
             // If it's REWARD_MANAGER (like Farm contract), should not earn interest
             if (hasRole(REWARD_MANAGER_ROLE, user)) {
                 // Log warning event but don't mint interest
-                emit RewardSkipped(
-                    user,
-                    activeReward,
-                    "Contract account interest blocked"
-                );
+                emit RewardSkipped(user, activeReward, "Contract account interest blocked");
             } else {
                 // Give user full rewards directly, no fees!
                 _mint(user, activeReward);
@@ -296,11 +266,7 @@ contract rPUSD is
     /**
      * @dev Automatically realize rewards during token transfers (modern version)
      */
-    function _update(
-        address from,
-        address to,
-        uint256 value
-    ) internal override {
+    function _update(address from, address to, uint256 value) internal override {
         // Realize sender and receiver rewards before transfer
         // Exclude zero addresses in mint/burn operations to avoid unnecessary calls
         if (from != address(0) && from != address(this)) {
@@ -326,18 +292,14 @@ contract rPUSD is
     /**
      * @notice Get user pending rewards
      */
-    function getPendingRewards(
-        address account
-    ) external view returns (uint256 activeReward) {
+    function getPendingRewards(address account) external view returns (uint256 activeReward) {
         activeReward = _calculateActiveReward(account);
     }
 
     /**
      * @notice Get user account last update time
      */
-    function getUserAccountLastUpdate(
-        address account
-    ) external view returns (uint64 lastUpdateTime) {
+    function getUserAccountLastUpdate(address account) external view returns (uint64 lastUpdateTime) {
         return userAccountsLastUpdate[account];
     }
 
@@ -347,11 +309,7 @@ contract rPUSD is
     function getContractStats()
         external
         view
-        returns (
-            uint256 _totalRealSupply,
-            uint256 _globalActiveAPY,
-            uint256 _totalRewardAccrued
-        )
+        returns (uint256 _totalRealSupply, uint256 _globalActiveAPY, uint256 _totalRewardAccrued)
     {
         return (
             totalSupply(), // Actual minted token total supply
@@ -375,9 +333,7 @@ contract rPUSD is
      * @dev This yield rate will apply to all rPUSD holders, ensuring fair uniformity
      * @param newActiveAPY New active annual percentage yield (basis points, e.g., 800 represents 8%)
      */
-    function updateAPYParameters(
-        uint256 newActiveAPY
-    ) external onlyRole(APY_MANAGER_ROLE) {
+    function updateAPYParameters(uint256 newActiveAPY) external onlyRole(APY_MANAGER_ROLE) {
         require(newActiveAPY <= type(uint16).max, "APY exceeds uint16 max");
         require(newActiveAPY <= MAX_APY, "APY too high"); // Maximum 50%, allows 0% to pause rewards
         require(newActiveAPY != globalActiveAPY, "APY unchanged"); // Avoid meaningless updates

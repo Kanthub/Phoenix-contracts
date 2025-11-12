@@ -56,12 +56,7 @@ contract FarmUpgradeable is
      * @param _rpusdToken rPUSD token contract address
      * @param _vault Vault contract address
      */
-    function initialize(
-        address admin,
-        address _pusdToken,
-        address _rpusdToken,
-        address _vault
-    ) public initializer {
+    function initialize(address admin, address _pusdToken, address _rpusdToken, address _vault) public initializer {
         require(admin != address(0), "Invalid admin address");
         require(_pusdToken != address(0), "Invalid PUSD address");
         require(_rpusdToken != address(0), "Invalid rPUSD address");
@@ -84,9 +79,7 @@ contract FarmUpgradeable is
         currentAPY = 2000; // Initial APY 20% (2000 basis points)
 
         // Initialize APY history
-        apyHistory.push(
-            APYRecord({apy: currentAPY, timestamp: block.timestamp})
-        );
+        apyHistory.push(APYRecord({apy: currentAPY, timestamp: block.timestamp}));
     }
 
     /* ========== Core Business Functions ========== */
@@ -97,19 +90,13 @@ contract FarmUpgradeable is
      * @param asset Asset address
      * @param amount Deposit amount
      */
-    function depositAsset(
-        address asset,
-        uint256 amount
-    ) external nonReentrant whenNotPaused {
+    function depositAsset(address asset, uint256 amount) external nonReentrant whenNotPaused {
         require(vault.isValidAsset(asset), "Unsupported asset");
         // Here amount is asset quantity, not USD, need to convert to pusd amount
         uint256 pusdAmount = vault.getTokenPUSDValue(asset, amount);
         require(pusdAmount > 0, "Invalid deposit amount");
 
-        require(
-            pusdAmount >= minDepositAmount * (10 ** pusdToken.decimals()),
-            "Amount below minimum"
-        );
+        require(pusdAmount >= minDepositAmount * (10 ** pusdToken.decimals()), "Amount below minimum");
 
         // Calculate fee
         uint256 fee = (amount * depositFeeRate) / 10000;
@@ -147,25 +134,19 @@ contract FarmUpgradeable is
      * @param asset Asset address to withdraw
      * @param pusdAmount PUSD amount to withdraw
      */
-    function withdrawAsset(
-        address asset,
-        uint256 pusdAmount
-    ) external nonReentrant whenNotPaused {
+    function withdrawAsset(address asset, uint256 pusdAmount) external nonReentrant whenNotPaused {
         require(vault.isValidAsset(asset), "Unsupported asset");
         require(pusdAmount > 0, "Amount must be greater than 0");
 
         // Check user PUSD balance
-        require(
-            pusdToken.balanceOf(msg.sender) >= pusdAmount,
-            "Insufficient PUSD balance"
-        );
+        require(pusdToken.balanceOf(msg.sender) >= pusdAmount, "Insufficient PUSD balance");
 
         // Calculate required asset amount for withdrawal (reverse calculation through Oracle)
         uint256 assetAmount = vault.getPUSDAssetValue(asset, pusdAmount);
         require(assetAmount > 0, "Invalid withdrawal amount");
 
         // Check if Vault has sufficient asset balance
-        (uint256 vaultBalance, ) = vault.getTVL(asset);
+        (uint256 vaultBalance,) = vault.getTVL(asset);
         require(vaultBalance >= assetAmount, "Insufficient vault balance");
 
         UserAssetInfo storage userInfo = userAssets[msg.sender];
@@ -208,16 +189,11 @@ contract FarmUpgradeable is
      * Farm contract directly handles exchange logic to avoid complex inter-contract calls
      * @param pusdAmount PUSD amount
      */
-    function exchangePUSDToRPUSD(
-        uint256 pusdAmount
-    ) external nonReentrant whenNotPaused {
+    function exchangePUSDToRPUSD(uint256 pusdAmount) external nonReentrant whenNotPaused {
         require(pusdAmount > 0, "Amount must be greater than 0");
 
         // Check user PUSD balance
-        require(
-            pusdToken.balanceOf(msg.sender) >= pusdAmount,
-            "Insufficient PUSD balance"
-        );
+        require(pusdToken.balanceOf(msg.sender) >= pusdAmount, "Insufficient PUSD balance");
 
         // Farm directly handles exchange: 1. Burn PUSD, 2. Mint rPUSD
         pusdToken.burn(msg.sender, pusdAmount);
@@ -239,16 +215,11 @@ contract FarmUpgradeable is
      * Farm contract directly handles exchange logic ensuring separation of responsibilities
      * @param rpusdAmount rPUSD amount
      */
-    function exchangeRPUSDToPUSD(
-        uint256 rpusdAmount
-    ) external nonReentrant whenNotPaused {
+    function exchangeRPUSDToPUSD(uint256 rpusdAmount) external nonReentrant whenNotPaused {
         require(rpusdAmount > 0, "Amount must be greater than 0");
 
         // Check user rPUSD balance
-        require(
-            rpusdToken.balanceOf(msg.sender) >= rpusdAmount,
-            "Insufficient rPUSD balance"
-        );
+        require(rpusdToken.balanceOf(msg.sender) >= rpusdAmount, "Insufficient rPUSD balance");
 
         // Farm directly handles exchange: 1. Burn rPUSD, 2. Mint PUSD
         rpusdToken.burn(msg.sender, rpusdAmount);
@@ -271,31 +242,23 @@ contract FarmUpgradeable is
      * @param lockPeriod Lock period (5-180 days)
      * @return stakeId Record ID for this stake
      */
-    function stakePUSD(
-        uint256 amount,
-        uint256 lockPeriod
-    ) external nonReentrant whenNotPaused returns (uint256 stakeId) {
-        require(
-            amount >= minLockAmount * (10 ** pusdToken.decimals()),
-            "Stake amount too small"
-        );
+    function stakePUSD(uint256 amount, uint256 lockPeriod)
+        external
+        nonReentrant
+        whenNotPaused
+        returns (uint256 stakeId)
+    {
+        require(amount >= minLockAmount * (10 ** pusdToken.decimals()), "Stake amount too small");
 
         // Verify if lock period is supported
-        require(
-            lockPeriodMultipliers[lockPeriod] > 0,
-            "Unsupported lock period"
-        );
+        require(lockPeriodMultipliers[lockPeriod] > 0, "Unsupported lock period");
 
         // Check user PUSD balance
-        require(
-            pusdToken.balanceOf(msg.sender) >= amount,
-            "Insufficient PUSD balance"
-        );
+        require(pusdToken.balanceOf(msg.sender) >= amount, "Insufficient PUSD balance");
 
         // Check if user has authorized sufficient PUSD to Farm contract
         require(
-            IERC20(address(pusdToken)).allowance(msg.sender, address(this)) >=
-                amount,
+            IERC20(address(pusdToken)).allowance(msg.sender, address(this)) >= amount,
             "Insufficient PUSD allowance. Please approve Farm contract first"
         );
 
@@ -365,21 +328,12 @@ contract FarmUpgradeable is
      * @param stakeId Stake record ID to renew
      * @param compoundRewards Whether to compound rewards into stake
      */
-    function renewStake(
-        uint256 stakeId,
-        bool compoundRewards
-    ) external nonReentrant whenNotPaused {
-        require(
-            stakeId < userStakeRecords[msg.sender].length,
-            "Invalid stake ID"
-        );
+    function renewStake(uint256 stakeId, bool compoundRewards) external nonReentrant whenNotPaused {
+        require(stakeId < userStakeRecords[msg.sender].length, "Invalid stake ID");
 
         StakeRecord storage stakeRecord = userStakeRecords[msg.sender][stakeId];
         require(stakeRecord.active, "Stake record not found or inactive");
-        require(
-            block.timestamp >= stakeRecord.startTime + stakeRecord.lockPeriod,
-            "Still in lock period"
-        );
+        require(block.timestamp >= stakeRecord.startTime + stakeRecord.lockPeriod, "Still in lock period");
 
         // Call internal function directly to avoid code duplication
         _executeRenewal(stakeId, compoundRewards);
@@ -399,14 +353,7 @@ contract FarmUpgradeable is
             if (compoundRewards) {
                 // Compounding mode: directly add rewards to stake principal
                 stakeRecord.amount += reward;
-                emit StakeRenewal(
-                    msg.sender,
-                    stakeId,
-                    stakeRecord.lockPeriod,
-                    reward,
-                    stakeRecord.amount,
-                    true
-                );
+                emit StakeRenewal(msg.sender, stakeId, stakeRecord.lockPeriod, reward, stakeRecord.amount, true);
             } else {
                 // Traditional mode: distribute rewards to user
                 rpusdToken.mint(msg.sender, reward);
@@ -417,22 +364,13 @@ contract FarmUpgradeable is
         // Reset stake record for new lock period
         stakeRecord.startTime = block.timestamp;
         stakeRecord.lastClaimTime = block.timestamp;
-        stakeRecord.rewardMultiplier = lockPeriodMultipliers[
-            stakeRecord.lockPeriod
-        ];
+        stakeRecord.rewardMultiplier = lockPeriodMultipliers[stakeRecord.lockPeriod];
 
         // Update user operation time
         UserAssetInfo storage userInfo = userAssets[msg.sender];
         userInfo.lastActionTime = block.timestamp;
 
-        emit StakeRenewal(
-            msg.sender,
-            stakeId,
-            stakeRecord.lockPeriod,
-            reward,
-            stakeRecord.amount,
-            false
-        );
+        emit StakeRenewal(msg.sender, stakeId, stakeRecord.lockPeriod, reward, stakeRecord.amount, false);
     }
 
     /**
@@ -446,17 +384,11 @@ contract FarmUpgradeable is
      * @param stakeId Stake record ID to cancel
      */
     function unstakePUSD(uint256 stakeId) external nonReentrant whenNotPaused {
-        require(
-            stakeId < userStakeRecords[msg.sender].length,
-            "Invalid stake ID"
-        );
+        require(stakeId < userStakeRecords[msg.sender].length, "Invalid stake ID");
 
         StakeRecord storage stakeRecord = userStakeRecords[msg.sender][stakeId];
         require(stakeRecord.active, "Stake record not found or inactive");
-        require(
-            block.timestamp >= stakeRecord.startTime + stakeRecord.lockPeriod,
-            "Still in lock period"
-        );
+        require(block.timestamp >= stakeRecord.startTime + stakeRecord.lockPeriod, "Still in lock period");
 
         uint256 amount = stakeRecord.amount;
 
@@ -500,13 +432,8 @@ contract FarmUpgradeable is
      * @dev Rewards accrue only until unlock; claiming after unlock does not add extra yield
      * @param stakeId Stake record ID
      */
-    function claimStakeRewards(
-        uint256 stakeId
-    ) external nonReentrant whenNotPaused {
-        require(
-            stakeId < userStakeRecords[msg.sender].length,
-            "Invalid stake ID"
-        );
+    function claimStakeRewards(uint256 stakeId) external nonReentrant whenNotPaused {
+        require(stakeId < userStakeRecords[msg.sender].length, "Invalid stake ID");
 
         StakeRecord storage stakeRecord = userStakeRecords[msg.sender][stakeId];
         require(stakeRecord.active, "Stake record not found or inactive");
@@ -528,12 +455,7 @@ contract FarmUpgradeable is
      * @dev Batch claim current available rewards for all user's active stake records
      * @return totalReward Total amount of rewards claimed
      */
-    function claimAllStakeRewards()
-        external
-        nonReentrant
-        whenNotPaused
-        returns (uint256 totalReward)
-    {
+    function claimAllStakeRewards() external nonReentrant whenNotPaused returns (uint256 totalReward) {
         StakeRecord[] storage stakes = userStakeRecords[msg.sender];
         require(stakes.length > 0, "No stake records found");
 
@@ -568,12 +490,11 @@ contract FarmUpgradeable is
      * @return result Query result
      * @return reason Validation failure reason (used when queryType=3)
      */
-    function getStakeInfo(
-        address account,
-        uint256 queryType,
-        uint256 stakeId,
-        uint256 amount
-    ) external view returns (uint256 result, string memory reason) {
+    function getStakeInfo(address account, uint256 queryType, uint256 stakeId, uint256 amount)
+        external
+        view
+        returns (uint256 result, string memory reason)
+    {
         if (queryType == 0) {
             // Get total rewards
             StakeRecord[] storage stakes = userStakeRecords[account];
@@ -586,17 +507,12 @@ contract FarmUpgradeable is
             return (totalRewards, "");
         } else if (queryType == 1) {
             // Get specific ID rewards
-            StakeRecord storage stakeRecord = userStakeRecords[account][
-                stakeId
-            ];
+            StakeRecord storage stakeRecord = userStakeRecords[account][stakeId];
             if (!stakeRecord.active) return (0, "");
             return (_calculateStakeReward(stakeRecord), "");
         } else if (queryType == 2) {
             // Get allowance amount
-            return (
-                IERC20(address(pusdToken)).allowance(account, address(this)),
-                ""
-            );
+            return (IERC20(address(pusdToken)).allowance(account, address(this)), "");
         } else if (queryType == 3) {
             // Validate if staking is possible
             if (amount < minLockAmount * (10 ** pusdToken.decimals())) {
@@ -605,10 +521,7 @@ contract FarmUpgradeable is
             if (pusdToken.balanceOf(account) < amount) {
                 return (0, "Insufficient PUSD balance");
             }
-            if (
-                IERC20(address(pusdToken)).allowance(account, address(this)) <
-                amount
-            ) {
+            if (IERC20(address(pusdToken)).allowance(account, address(this)) < amount) {
                 return (0, "Insufficient PUSD allowance");
             }
             return (1, "");
@@ -662,9 +575,7 @@ contract FarmUpgradeable is
      * @param stakeRecord Stake record
      * @return Rewards for this stake
      */
-    function _calculateStakeReward(
-        StakeRecord storage stakeRecord
-    ) internal view returns (uint256) {
+    function _calculateStakeReward(StakeRecord storage stakeRecord) internal view returns (uint256) {
         if (!stakeRecord.active || stakeRecord.amount == 0) {
             return 0;
         }
@@ -680,13 +591,9 @@ contract FarmUpgradeable is
         // Cap calculation window at unlockTime (no rewards after unlock)
         uint256 effectiveEnd = toTime <= unlockTime ? toTime : unlockTime;
 
-        return
-            _calculateRewardWithHistory(
-                stakeRecord.amount,
-                stakeRecord.lastClaimTime,
-                effectiveEnd,
-                stakeRecord.rewardMultiplier
-            );
+        return _calculateRewardWithHistory(
+            stakeRecord.amount, stakeRecord.lastClaimTime, effectiveEnd, stakeRecord.rewardMultiplier
+        );
     }
 
     /**
@@ -697,12 +604,11 @@ contract FarmUpgradeable is
      * @param multiplier Reward multiplier
      * @return Calculated yield
      */
-    function _calculateRewardWithHistory(
-        uint256 amount,
-        uint256 fromTime,
-        uint256 toTime,
-        uint16 multiplier
-    ) internal view returns (uint256) {
+    function _calculateRewardWithHistory(uint256 amount, uint256 fromTime, uint256 toTime, uint16 multiplier)
+        internal
+        view
+        returns (uint256)
+    {
         if (fromTime >= toTime || amount == 0) {
             return 0;
         }
@@ -711,33 +617,20 @@ contract FarmUpgradeable is
         uint256 currentTime = fromTime;
 
         // Iterate through APY history records, calculate yield in segments
-        for (
-            uint256 i = 0;
-            i < apyHistory.length && currentTime < toTime;
-            i++
-        ) {
+        for (uint256 i = 0; i < apyHistory.length && currentTime < toTime; i++) {
             APYRecord memory record = apyHistory[i];
 
             // If this APY record is within our time range
             if (record.timestamp > currentTime) {
                 // Calculate yield to next APY change point or end time
-                uint256 segmentEndTime = record.timestamp > toTime
-                    ? toTime
-                    : record.timestamp;
+                uint256 segmentEndTime = record.timestamp > toTime ? toTime : record.timestamp;
                 uint256 segmentDuration = segmentEndTime - currentTime;
 
                 // Get APY effective for current time segment: if first record, use initial APY; otherwise use previous record's APY
-                uint256 segmentAPY = (i == 0)
-                    ? apyHistory[0].apy
-                    : apyHistory[i - 1].apy;
+                uint256 segmentAPY = (i == 0) ? apyHistory[0].apy : apyHistory[i - 1].apy;
 
                 // Calculate yield for this segment
-                uint256 segmentReward = _calculateSegmentReward(
-                    amount,
-                    segmentAPY,
-                    segmentDuration,
-                    multiplier
-                );
+                uint256 segmentReward = _calculateSegmentReward(amount, segmentAPY, segmentDuration, multiplier);
                 totalReward += segmentReward;
                 currentTime = segmentEndTime;
             }
@@ -746,12 +639,7 @@ contract FarmUpgradeable is
         // Handle final segment (using current APY)
         if (currentTime < toTime) {
             uint256 finalDuration = toTime - currentTime;
-            uint256 finalReward = _calculateSegmentReward(
-                amount,
-                currentAPY,
-                finalDuration,
-                multiplier
-            );
+            uint256 finalReward = _calculateSegmentReward(amount, currentAPY, finalDuration, multiplier);
             totalReward += finalReward;
         }
 
@@ -766,12 +654,11 @@ contract FarmUpgradeable is
      * @param multiplier Reward multiplier
      * @return Calculated yield
      */
-    function _calculateSegmentReward(
-        uint256 amount,
-        uint256 apy,
-        uint256 duration,
-        uint16 multiplier
-    ) internal pure returns (uint256) {
+    function _calculateSegmentReward(uint256 amount, uint256 apy, uint256 duration, uint16 multiplier)
+        internal
+        pure
+        returns (uint256)
+    {
         if (duration == 0 || amount == 0) {
             return 0;
         }
@@ -821,9 +708,7 @@ contract FarmUpgradeable is
      * @return totalStakeRewards Total pending rewards
      * @return activeStakeCount Active stake record count
      */
-    function getUserInfo(
-        address user
-    )
+    function getUserInfo(address user)
         external
         view
         returns (
@@ -871,10 +756,7 @@ contract FarmUpgradeable is
      * @return isUnlocked Whether already unlocked
      * @return remainingTime Remaining lock time
      */
-    function getStakeDetails(
-        address user,
-        uint256 stakeId
-    )
+    function getStakeDetails(address user, uint256 stakeId)
         external
         view
         returns (
@@ -890,10 +772,7 @@ contract FarmUpgradeable is
 
         // Calculate rewards using snapshot method
         pendingReward = _calculateRewardWithHistory(
-            stakeRecord.amount,
-            stakeRecord.lastClaimTime,
-            block.timestamp,
-            stakeRecord.rewardMultiplier
+            stakeRecord.amount, stakeRecord.lastClaimTime, block.timestamp, stakeRecord.rewardMultiplier
         );
 
         unlockTime = stakeRecord.startTime + stakeRecord.lockPeriod;
@@ -912,20 +791,10 @@ contract FarmUpgradeable is
      * @return totalCount Total record count (matching conditions)
      * @return hasMore Whether there are more records
      */
-    function getUserStakeDetails(
-        address user,
-        uint256 offset,
-        uint256 limit,
-        bool activeOnly,
-        uint256 lockPeriod
-    )
+    function getUserStakeDetails(address user, uint256 offset, uint256 limit, bool activeOnly, uint256 lockPeriod)
         external
         view
-        returns (
-            StakeDetail[] memory stakeDetails,
-            uint256 totalCount,
-            bool hasMore
-        )
+        returns (StakeDetail[] memory stakeDetails, uint256 totalCount, bool hasMore)
     {
         StakeRecord[] storage stakes = userStakeRecords[user];
 
@@ -939,8 +808,7 @@ contract FarmUpgradeable is
         for (uint256 i = 0; i < stakes.length; i++) {
             // Apply filters: activeOnly and lockPeriod
             bool matchesActiveFilter = !activeOnly || stakes[i].active;
-            bool matchesLockPeriodFilter = lockPeriod == 0 ||
-                stakes[i].lockPeriod == lockPeriod;
+            bool matchesLockPeriodFilter = lockPeriod == 0 || stakes[i].lockPeriod == lockPeriod;
 
             if (matchesActiveFilter && matchesLockPeriodFilter) {
                 validIndices[validCount] = i;
@@ -972,14 +840,10 @@ contract FarmUpgradeable is
                 lastClaimTime: record.lastClaimTime,
                 rewardMultiplier: record.rewardMultiplier,
                 active: record.active,
-                currentReward: record.active
-                    ? _calculateStakeReward(record)
-                    : 0,
+                currentReward: record.active ? _calculateStakeReward(record) : 0,
                 unlockTime: record.startTime + record.lockPeriod,
-                isUnlocked: block.timestamp >=
-                    record.startTime + record.lockPeriod,
-                effectiveAPY: (uint256(currentAPY) *
-                    uint256(record.rewardMultiplier)) / 10000
+                isUnlocked: block.timestamp >= record.startTime + record.lockPeriod,
+                effectiveAPY: (uint256(currentAPY) * uint256(record.rewardMultiplier)) / 10000
             });
         }
 
@@ -990,17 +854,13 @@ contract FarmUpgradeable is
      * @notice Get system health status details
      * @return totalTVL Vault total locked value
      * @return totalPUSDMarketCap PUSD total market cap
-     
+     *
      */
     //  * @return tvlUtilization TVL utilization (PUSD supply/TVL ratio)
     //  * @return avgDepositPerUser Average deposit per user
     //  * @return pusdSupply PUSD total supply
     //  * @return rpusdSupply rPUSD total supply
-    function getSystemHealth()
-        external
-        view
-        returns (uint256 totalTVL, uint256 totalPUSDMarketCap)
-    {
+    function getSystemHealth() external view returns (uint256 totalTVL, uint256 totalPUSDMarketCap) {
         // Get basic data
         // Get Vault's total TVL
         try vault.getTotalTVL() returns (uint256 tvl) {
@@ -1030,14 +890,11 @@ contract FarmUpgradeable is
      * @param lockPeriods Array of lock periods (in seconds)
      * @param multipliers Array of corresponding multipliers (basis points, range: 5000-50000, i.e., 0.5x-5.0x)
      */
-    function batchSetLockPeriodMultipliers(
-        uint256[] calldata lockPeriods,
-        uint16[] calldata multipliers
-    ) external onlyRole(OPERATOR_ROLE) {
-        require(
-            lockPeriods.length == multipliers.length,
-            "Array length mismatch"
-        );
+    function batchSetLockPeriodMultipliers(uint256[] calldata lockPeriods, uint16[] calldata multipliers)
+        external
+        onlyRole(OPERATOR_ROLE)
+    {
+        require(lockPeriods.length == multipliers.length, "Array length mismatch");
         require(lockPeriods.length > 0, "Empty arrays");
 
         for (uint256 i = 0; i < lockPeriods.length; i++) {
@@ -1050,11 +907,7 @@ contract FarmUpgradeable is
                 supportedLockPeriods.push(lockPeriods[i]);
                 emit LockPeriodAdded(lockPeriods[i], multipliers[i]);
             } else {
-                emit MultiplierUpdated(
-                    lockPeriods[i],
-                    oldMultiplier,
-                    multipliers[i]
-                );
+                emit MultiplierUpdated(lockPeriods[i], oldMultiplier, multipliers[i]);
             }
 
             lockPeriodMultipliers[lockPeriods[i]] = multipliers[i];
@@ -1065,18 +918,14 @@ contract FarmUpgradeable is
      * @notice Remove lock period configuration
      * @param lockPeriod Lock period to remove
      */
-    function removeLockPeriod(
-        uint256 lockPeriod
-    ) external onlyRole(OPERATOR_ROLE) {
+    function removeLockPeriod(uint256 lockPeriod) external onlyRole(OPERATOR_ROLE) {
         require(lockPeriodMultipliers[lockPeriod] > 0, "Lock period not found");
 
         // Remove from array
         for (uint256 i = 0; i < supportedLockPeriods.length; i++) {
             if (supportedLockPeriods[i] == lockPeriod) {
                 // Move last element to current position, then delete last element
-                supportedLockPeriods[i] = supportedLockPeriods[
-                    supportedLockPeriods.length - 1
-                ];
+                supportedLockPeriods[i] = supportedLockPeriods[supportedLockPeriods.length - 1];
                 supportedLockPeriods.pop();
                 break;
             }
@@ -1093,10 +942,7 @@ contract FarmUpgradeable is
      * @param configType Configuration type: 0-minimum deposit, 1-minimum stake, 2-max stakes, 3-max APY history
      * @param newValue New value
      */
-    function updateSystemConfig(
-        uint256 configType,
-        uint256 newValue
-    ) external onlyRole(OPERATOR_ROLE) {
+    function updateSystemConfig(uint256 configType, uint256 newValue) external onlyRole(OPERATOR_ROLE) {
         if (configType == 0) {
             require(
                 // pusd has 6 decimals
@@ -1112,16 +958,10 @@ contract FarmUpgradeable is
             );
             minLockAmount = newValue;
         } else if (configType == 2) {
-            require(
-                newValue >= 10 && newValue <= 65535,
-                "Invalid max stakes per user"
-            );
+            require(newValue >= 10 && newValue <= 65535, "Invalid max stakes per user");
             maxStakesPerUser = uint16(newValue);
         } else if (configType == 3) {
-            require(
-                newValue >= 50 && newValue <= 65535,
-                "Invalid max APY history"
-            );
+            require(newValue >= 50 && newValue <= 65535, "Invalid max APY history");
             maxAPYHistory = uint16(newValue);
         } else {
             revert("Invalid config type");
@@ -1135,18 +975,9 @@ contract FarmUpgradeable is
      * @param _depositFeeRate Deposit fee rate
      * @param _withdrawFeeRate Withdrawal fee rate
      */
-    function setFeeRates(
-        uint256 _depositFeeRate,
-        uint256 _withdrawFeeRate
-    ) external onlyRole(OPERATOR_ROLE) {
-        require(
-            _depositFeeRate <= type(uint16).max,
-            "Deposit fee exceeds uint16 max"
-        );
-        require(
-            _withdrawFeeRate <= type(uint16).max,
-            "Withdraw fee exceeds uint16 max"
-        );
+    function setFeeRates(uint256 _depositFeeRate, uint256 _withdrawFeeRate) external onlyRole(OPERATOR_ROLE) {
+        require(_depositFeeRate <= type(uint16).max, "Deposit fee exceeds uint16 max");
+        require(_withdrawFeeRate <= type(uint16).max, "Withdraw fee exceeds uint16 max");
         depositFeeRate = uint16(_depositFeeRate);
         withdrawFeeRate = uint16(_withdrawFeeRate);
 
@@ -1170,9 +1001,7 @@ contract FarmUpgradeable is
     /**
      * @notice Upgrade authorization
      */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
         // Admin privileges are sufficient, no additional validation needed
     }
 }

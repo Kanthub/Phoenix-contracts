@@ -8,9 +8,7 @@ interface IVault {
 
     function addFee(address asset, uint256 amount) external;
 
-    function getTVL(
-        address asset
-    ) external view returns (uint256 tvl, uint256 marketValue);
+    function getTVL(address asset) external view returns (uint256 tvl, uint256 marketValue);
 
     function getTotalTVL() external view returns (uint256 totalTVL);
 
@@ -18,13 +16,7 @@ interface IVault {
 
     function isValidAsset(address asset) external view returns (bool);
 
-    function getTokenPUSDValue(
-        address asset,
-        uint256 amount
-    ) external view returns (uint256 pusdAmount);
+    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount);
 
-    function getPUSDAssetValue(
-        address asset,
-        uint256 pusdAmount
-    ) external view returns (uint256 amount);
+    function getPUSDAssetValue(address asset, uint256 pusdAmount) external view returns (uint256 amount);
 }

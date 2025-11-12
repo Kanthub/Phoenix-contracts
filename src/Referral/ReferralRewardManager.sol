@@ -75,10 +75,7 @@ contract ReferralRewardManager is
         require(_referrer != address(0), "Invalid referrer address");
         require(_referrer != msg.sender, "Cannot refer yourself");
         require(referrer[msg.sender] == address(0), "Referrer already set");
-        require(
-            referralCount[_referrer] < maxReferralsPerUser,
-            "Referrer has reached max referrals"
-        );
+        require(referralCount[_referrer] < maxReferralsPerUser, "Referrer has reached max referrals");
 
         // Set referral relationship
         referrer[msg.sender] = _referrer;
@@ -101,10 +98,10 @@ contract ReferralRewardManager is
      * @param users Array of user addresses
      * @param amounts Array of reward amounts
      */
-    function batchAddRewards(
-        address[] calldata users,
-        uint256[] calldata amounts
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function batchAddRewards(address[] calldata users, uint256[] calldata amounts)
+        external
+        onlyRole(REWARD_MANAGER_ROLE)
+    {
         require(users.length == amounts.length, "Array length mismatch");
         require(users.length > 0, "Empty arrays");
 
@@ -134,19 +131,16 @@ contract ReferralRewardManager is
      * @param users Array of user addresses
      * @param amounts Array of amounts to reduce
      */
-    function batchReduceRewards(
-        address[] calldata users,
-        uint256[] calldata amounts
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function batchReduceRewards(address[] calldata users, uint256[] calldata amounts)
+        external
+        onlyRole(REWARD_MANAGER_ROLE)
+    {
         require(users.length == amounts.length, "Array length mismatch");
 
         for (uint256 i = 0; i < users.length; i++) {
             require(users[i] != address(0), "Invalid user address");
             require(amounts[i] > 0, "Invalid amount");
-            require(
-                pendingRewards[users[i]] >= amounts[i],
-                "Insufficient pending rewards"
-            );
+            require(pendingRewards[users[i]] >= amounts[i], "Insufficient pending rewards");
 
             pendingRewards[users[i]] -= amounts[i];
             totalPendingRewards -= amounts[i];
@@ -160,18 +154,15 @@ contract ReferralRewardManager is
      * @param users Array of user addresses
      * @param amounts Array of reward amounts
      */
-    function batchSetRewards(
-        address[] calldata users,
-        uint256[] calldata amounts
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function batchSetRewards(address[] calldata users, uint256[] calldata amounts)
+        external
+        onlyRole(REWARD_MANAGER_ROLE)
+    {
         require(users.length == amounts.length, "Array length mismatch");
 
         for (uint256 i = 0; i < users.length; i++) {
             require(users[i] != address(0), "Invalid user address");
-            require(
-                amounts[i] <= maxRewardPerUser,
-                "Exceeds max reward per user"
-            );
+            require(amounts[i] <= maxRewardPerUser, "Exceeds max reward per user");
 
             uint256 oldAmount = pendingRewards[users[i]];
 
@@ -192,9 +183,7 @@ contract ReferralRewardManager is
      * @notice Batch clear rewards
      * @param users Array of user addresses
      */
-    function batchClearRewards(
-        address[] calldata users
-    ) external onlyRole(REWARD_MANAGER_ROLE) {
+    function batchClearRewards(address[] calldata users) external onlyRole(REWARD_MANAGER_ROLE) {
         for (uint256 i = 0; i < users.length; i++) {
             require(users[i] != address(0), "Invalid user address");
 
@@ -220,10 +209,7 @@ contract ReferralRewardManager is
 
         // Check contract balance
         uint256 contractBalance = rpusdToken.balanceOf(address(this));
-        require(
-            contractBalance >= pending,
-            "Insufficient balance in contract. Please contact admin."
-        );
+        require(contractBalance >= pending, "Insufficient balance in contract. Please contact admin.");
 
         // Clear pending rewards
         pendingRewards[msg.sender] = 0;
@@ -234,10 +220,7 @@ contract ReferralRewardManager is
         totalClaimedRewardsGlobal += pending;
 
         // Transfer from this contract
-        require(
-            rpusdToken.transfer(msg.sender, pending),
-            "rPUSD transfer failed."
-        );
+        require(rpusdToken.transfer(msg.sender, pending), "rPUSD transfer failed.");
 
         emit RewardClaimed(msg.sender, pending);
     }
@@ -253,10 +236,7 @@ contract ReferralRewardManager is
         require(amount > 0, "Invalid amount");
 
         // Anyone can transfer rPUSD to this contract
-        require(
-            rpusdToken.transferFrom(msg.sender, address(this), amount),
-            "rPUSD transfer failed"
-        );
+        require(rpusdToken.transferFrom(msg.sender, address(this), amount), "rPUSD transfer failed");
 
         emit RewardPoolFunded(msg.sender, amount);
     }
@@ -265,18 +245,13 @@ contract ReferralRewardManager is
      * @notice Withdraw excess funds (only admin, for emergency)
      * @param amount Amount to withdraw
      */
-    function withdrawFunds(
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdrawFunds(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(amount > 0, "Invalid amount");
 
         uint256 contractBalance = rpusdToken.balanceOf(address(this));
         require(contractBalance >= amount, "Insufficient balance");
 
-        require(
-            rpusdToken.transfer(msg.sender, amount),
-            "rPUSD transfer failed"
-        );
+        require(rpusdToken.transfer(msg.sender, amount), "rPUSD transfer failed");
     }
 
     /* ========== Configuration Management ========== */
@@ -287,28 +262,19 @@ contract ReferralRewardManager is
      * @param _maxRewardPerUser Maximum reward per user
      * @param _maxReferralsPerUser Maximum referrals per referrer
      */
-    function updateConfig(
-        uint256 _minClaimAmount,
-        uint256 _maxRewardPerUser,
-        uint256 _maxReferralsPerUser
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateConfig(uint256 _minClaimAmount, uint256 _maxRewardPerUser, uint256 _maxReferralsPerUser)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+    {
         require(_minClaimAmount > 0, "Invalid min claim amount");
         require(_maxRewardPerUser >= _minClaimAmount, "Invalid max reward");
-        require(
-            _maxReferralsPerUser > 0 &&
-                _maxReferralsPerUser <= type(uint16).max,
-            "Invalid max referrals"
-        );
+        require(_maxReferralsPerUser > 0 && _maxReferralsPerUser <= type(uint16).max, "Invalid max referrals");
 
         minClaimAmount = _minClaimAmount;
         maxRewardPerUser = _maxRewardPerUser;
         maxReferralsPerUser = uint16(_maxReferralsPerUser);
 
-        emit ConfigUpdated(
-            _minClaimAmount,
-            _maxRewardPerUser,
-            _maxReferralsPerUser
-        );
+        emit ConfigUpdated(_minClaimAmount, _maxRewardPerUser, _maxReferralsPerUser);
     }
 
     /* ========== Query Functions ========== */
@@ -321,24 +287,12 @@ contract ReferralRewardManager is
      * @return _pendingReward Pending rewards
      * @return _totalClaimed Total claimed amount
      */
-    function getUserReferralInfo(
-        address user
-    )
+    function getUserReferralInfo(address user)
         external
         view
-        returns (
-            address _referrer,
-            uint256 _referralCount,
-            uint256 _pendingReward,
-            uint256 _totalClaimed
-        )
+        returns (address _referrer, uint256 _referralCount, uint256 _pendingReward, uint256 _totalClaimed)
     {
-        return (
-            referrer[user],
-            referralCount[user],
-            pendingRewards[user],
-            totalClaimedRewards[user]
-        );
+        return (referrer[user], referralCount[user], pendingRewards[user], totalClaimedRewards[user]);
     }
 
     /**
@@ -346,9 +300,7 @@ contract ReferralRewardManager is
      * @param _referrer Referrer address
      * @return Array of referred user addresses
      */
-    function getReferrals(
-        address _referrer
-    ) external view returns (address[] memory) {
+    function getReferrals(address _referrer) external view returns (address[] memory) {
         return referrals[_referrer];
     }
 
@@ -362,19 +314,9 @@ contract ReferralRewardManager is
     function getRewardPoolStatus()
         external
         view
-        returns (
-            address poolAddress,
-            uint256 balance,
-            uint256 totalPending,
-            uint256 totalClaimed
-        )
+        returns (address poolAddress, uint256 balance, uint256 totalPending, uint256 totalClaimed)
     {
-        return (
-            address(this),
-            rpusdToken.balanceOf(address(this)),
-            totalPendingRewards,
-            totalClaimedRewardsGlobal
-        );
+        return (address(this), rpusdToken.balanceOf(address(this)), totalPendingRewards, totalClaimedRewardsGlobal);
     }
 
     /**
@@ -387,19 +329,9 @@ contract ReferralRewardManager is
     function getSystemStats()
         external
         view
-        returns (
-            uint256 _totalUsers,
-            uint256 _totalReferrers,
-            uint256 _totalPending,
-            uint256 _totalClaimed
-        )
+        returns (uint256 _totalUsers, uint256 _totalReferrers, uint256 _totalPending, uint256 _totalClaimed)
     {
-        return (
-            totalUsers,
-            totalReferrers,
-            totalPendingRewards,
-            totalClaimedRewardsGlobal
-        );
+        return (totalUsers, totalReferrers, totalPendingRewards, totalClaimedRewardsGlobal);
     }
 
     /**
@@ -411,11 +343,7 @@ contract ReferralRewardManager is
     function getConfig()
         external
         view
-        returns (
-            uint256 _minClaimAmount,
-            uint256 _maxRewardPerUser,
-            uint256 _maxReferralsPerUser
-        )
+        returns (uint256 _minClaimAmount, uint256 _maxRewardPerUser, uint256 _maxReferralsPerUser)
     {
         return (minClaimAmount, maxRewardPerUser, maxReferralsPerUser);
     }
@@ -439,9 +367,7 @@ contract ReferralRewardManager is
     /**
      * @notice Authorize upgrade
      */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
         // Only DEFAULT_ADMIN_ROLE can upgrade
     }
 }

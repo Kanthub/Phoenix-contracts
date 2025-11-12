@@ -87,9 +87,7 @@ contract Vault is
      * @dev Can only be set once to ensure system security
      * @param _farm Farm contract address
      */
-    function setFarmAddress(
-        address _farm
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function setFarmAddress(address _farm) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(farm == address(0), "Vault: Farm address already set");
         require(_farm != address(0), "Vault: Invalid farm address");
         farm = _farm;
@@ -101,17 +99,9 @@ contract Vault is
      * @dev Can only be set once, responsible for system health checks and price feeds
      * @param _oracleManager Oracle manager contract address
      */
-    function setOracleManager(
-        address _oracleManager
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(
-            oracleManager == address(0),
-            "Vault: Oracle Manager already set"
-        );
-        require(
-            _oracleManager != address(0),
-            "Vault: Invalid Oracle Manager address"
-        );
+    function setOracleManager(address _oracleManager) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(oracleManager == address(0), "Vault: Oracle Manager already set");
+        require(_oracleManager != address(0), "Vault: Invalid Oracle Manager address");
         oracleManager = _oracleManager;
         emit OracleManagerSet(_oracleManager);
     }
@@ -124,10 +114,7 @@ contract Vault is
      * @param asset Asset contract address
      * @param name Asset name (e.g., "Tether USD", "USD Coin")
      */
-    function addAsset(
-        address asset,
-        string memory name
-    ) external onlyRole(ASSET_MANAGER_ROLE) {
+    function addAsset(address asset, string memory name) external onlyRole(ASSET_MANAGER_ROLE) {
         // 🔒 Security check: PUSD cannot be a collateral asset
         require(asset != pusdToken, "Vault: PUSD cannot be collateral asset");
         _addAssetInternal(asset, name);
@@ -157,10 +144,7 @@ contract Vault is
      */
     function removeAsset(address asset) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(supportedAssets[asset], "Vault: Asset not supported");
-        require(
-            IERC20(asset).balanceOf(address(this)) == 0,
-            "Vault: Asset has balance"
-        );
+        require(IERC20(asset).balanceOf(address(this)) == 0, "Vault: Asset has balance");
         require(accumulatedFees[asset] == 0, "Vault: Asset has unclaimed fees");
 
         supportedAssets[asset] = false;
@@ -188,15 +172,8 @@ contract Vault is
      * @param asset Deposit asset address
      * @param amount Deposit amount
      */
-    function depositFor(
-        address user,
-        address asset,
-        uint256 amount
-    ) external nonReentrant whenNotPaused {
-        require(
-            block.timestamp - lastHealthCheck < HEALTH_CHECK_TIMEOUT,
-            "Vault: Oracle system offline"
-        );
+    function depositFor(address user, address asset, uint256 amount) external nonReentrant whenNotPaused {
+        require(block.timestamp - lastHealthCheck < HEALTH_CHECK_TIMEOUT, "Vault: Oracle system offline");
         require(msg.sender == farm, "Vault: Caller is not the farm");
         require(supportedAssets[asset], "Vault: Unsupported asset");
 
@@ -216,15 +193,8 @@ contract Vault is
      * @param asset Withdrawal asset address
      * @param amount Withdrawal amount
      */
-    function withdrawTo(
-        address user,
-        address asset,
-        uint256 amount
-    ) external nonReentrant whenNotPaused {
-        require(
-            block.timestamp - lastHealthCheck < HEALTH_CHECK_TIMEOUT,
-            "Vault: Oracle system offline"
-        );
+    function withdrawTo(address user, address asset, uint256 amount) external nonReentrant whenNotPaused {
+        require(block.timestamp - lastHealthCheck < HEALTH_CHECK_TIMEOUT, "Vault: Oracle system offline");
         require(msg.sender == farm, "Vault: Caller is not the farm");
         require(supportedAssets[asset], "Vault: Unsupported asset");
 
@@ -254,10 +224,7 @@ contract Vault is
      * @param asset Asset contract address to withdraw fees from
      * @param to Fee recipient address
      */
-    function claimFees(
-        address asset,
-        address to
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    function claimFees(address asset, address to) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         require(supportedAssets[asset], "Vault: Unsupported asset");
         uint256 feesToClaim = accumulatedFees[asset];
         require(feesToClaim > 0, "Vault: No fees to claim");
@@ -277,21 +244,11 @@ contract Vault is
      * @param asset Withdrawal asset address
      * @param amount Withdrawal amount
      */
-    function proposeWithdrawal(
-        address to,
-        address asset,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function proposeWithdrawal(address to, address asset, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(to != address(0), "Vault: Cannot withdraw to zero address");
         require(supportedAssets[asset], "Vault: Unsupported asset");
-        require(
-            IERC20(asset).balanceOf(address(this)) >= amount,
-            "Vault: Insufficient funds for proposal"
-        );
-        require(
-            pendingWithdrawalAmount == 0,
-            "Vault: Pending withdrawal exists"
-        );
+        require(IERC20(asset).balanceOf(address(this)) >= amount, "Vault: Insufficient funds for proposal");
+        require(pendingWithdrawalAmount == 0, "Vault: Pending withdrawal exists");
 
         pendingWithdrawalAmount = amount;
         pendingWithdrawalAsset = asset;
@@ -304,19 +261,9 @@ contract Vault is
      * @notice Execute large amount withdrawal
      * @dev Execute withdrawal operation after timelock expires
      */
-    function executeWithdrawal()
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        nonReentrant
-    {
-        require(
-            block.timestamp >= withdrawalUnlockTime,
-            "Vault: Timelock has not expired"
-        );
-        require(
-            pendingWithdrawalAmount > 0,
-            "Vault: No pending withdrawal to execute"
-        );
+    function executeWithdrawal() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        require(block.timestamp >= withdrawalUnlockTime, "Vault: Timelock has not expired");
+        require(pendingWithdrawalAmount > 0, "Vault: No pending withdrawal to execute");
 
         uint256 amount = pendingWithdrawalAmount;
         address asset = pendingWithdrawalAsset;
@@ -355,16 +302,13 @@ contract Vault is
      * @notice Emergency rescue for non-supported tokens mistakenly sent to the vault
      * @dev Only for NON-supported assets. Supported assets must use timelock withdrawal.
      */
-    function emergencySweep(
-        address token,
-        address to,
-        uint256 amount
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+    function emergencySweep(address token, address to, uint256 amount)
+        external
+        onlyRole(DEFAULT_ADMIN_ROLE)
+        nonReentrant
+    {
         require(token != address(0) && to != address(0), "Vault: Zero address");
-        require(
-            !supportedAssets[token],
-            "Vault: Use timelock for supported asset"
-        );
+        require(!supportedAssets[token], "Vault: Use timelock for supported asset");
         require(token != pusdToken, "Vault: Cannot sweep PUSD");
         IERC20(token).safeTransfer(to, amount);
     }
@@ -376,10 +320,7 @@ contract Vault is
      * @dev Oracle manager calls regularly to prove system is functioning normally
      */
     function heartbeat() external {
-        require(
-            msg.sender == oracleManager,
-            "Vault: Only Oracle Manager can send heartbeat"
-        );
+        require(msg.sender == oracleManager, "Vault: Only Oracle Manager can send heartbeat");
         lastHealthCheck = block.timestamp;
     }
 
@@ -425,9 +366,7 @@ contract Vault is
      * @return tvl Asset balance in vault (raw amount, needs to be divided by tokenDecimals)
      * @return marketValue Market value of the asset (USD denominated, 18 decimal places, needs to be divided by 1e18)
      */
-    function getTVL(
-        address asset
-    ) external view returns (uint256 tvl, uint256 marketValue) {
+    function getTVL(address asset) external view returns (uint256 tvl, uint256 marketValue) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
 
         // Get asset balance
@@ -435,10 +374,7 @@ contract Vault is
 
         // If Oracle is set, calculate real market value
         if (oracleManager != address(0)) {
-            try IPUSDOracle(oracleManager).getTokenUSDPrice(asset) returns (
-                uint256 price,
-                uint256
-            ) {
+            try IPUSDOracle(oracleManager).getTokenUSDPrice(asset) returns (uint256 price, uint256) {
                 // Get asset decimal places
                 uint8 decimals = IERC20Metadata(asset).decimals();
 
@@ -483,10 +419,7 @@ contract Vault is
         uint256 pusdTotalSupply = IERC20(pusdToken).totalSupply();
 
         if (oracleManager != address(0)) {
-            try IPUSDOracle(oracleManager).getPUSDUSDPrice() returns (
-                uint256 pusdPrice,
-                uint256
-            ) {
+            try IPUSDOracle(oracleManager).getPUSDUSDPrice() returns (uint256 pusdPrice, uint256) {
                 // PUSD market cap = circulation * PUSD/USD price
                 pusdMarketCap = (pusdTotalSupply * pusdPrice) / 1e18;
             } catch {
@@ -506,17 +439,13 @@ contract Vault is
      * @return pusdAmount Corresponding PUSD amount (6 decimal places)
      * @dev Directly obtain Token/PUSD price through Oracle for conversion, transaction fails if price retrieval fails
      */
-    function getTokenPUSDValue(
-        address asset,
-        uint256 amount
-    ) external view returns (uint256 pusdAmount) {
+    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
         require(amount > 0, "Vault: Amount must be greater than 0");
         require(oracleManager != address(0), "Vault: Oracle not set");
 
         // Must get price from Oracle, fail if no price
-        (uint256 tokenPusdPrice, ) = IPUSDOracle(oracleManager)
-            .getTokenPUSDPrice(asset);
+        (uint256 tokenPusdPrice,) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
         require(tokenPusdPrice > 0, "Vault: Invalid token price");
 
         // Get asset decimal places
@@ -533,17 +462,13 @@ contract Vault is
      * @param pusdAmount PUSD amount (6 decimal places)
      * @return amount Corresponding asset amount
      */
-    function getPUSDAssetValue(
-        address asset,
-        uint256 pusdAmount
-    ) external view returns (uint256 amount) {
+    function getPUSDAssetValue(address asset, uint256 pusdAmount) external view returns (uint256 amount) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
         require(pusdAmount >= 0, "Vault: Amount must be greater than 0");
         require(oracleManager != address(0), "Vault: Oracle not set");
 
         // Must get price from Oracle, fail if no price
-        (uint256 tokenPusdPrice, ) = IPUSDOracle(oracleManager)
-            .getTokenPUSDPrice(asset);
+        (uint256 tokenPusdPrice,) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
         require(tokenPusdPrice > 0, "Vault: Invalid token price");
 
         // Get asset decimal places
@@ -564,17 +489,10 @@ contract Vault is
      * @dev Frontend usage: assetAmount / (10 ** assetDecimals) to get real amount
      *      Frontend usage: usdAmount / 1e18 to get real USD value
      */
-    function getFormattedTVL(
-        address asset
-    )
+    function getFormattedTVL(address asset)
         external
         view
-        returns (
-            uint256 assetAmount,
-            uint256 usdAmount,
-            uint8 assetDecimals,
-            string memory assetSymbol
-        )
+        returns (uint256 assetAmount, uint256 usdAmount, uint8 assetDecimals, string memory assetSymbol)
     {
         require(supportedAssets[asset], "Vault: Unsupported asset");
 
@@ -640,9 +558,7 @@ contract Vault is
      * @param asset Asset contract address
      * @return Asset symbol (e.g., USDT, USDC)
      */
-    function getAssetSymbol(
-        address asset
-    ) external view returns (string memory) {
+    function getAssetSymbol(address asset) external view returns (string memory) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
         return IERC20Metadata(asset).symbol();
     }
@@ -663,11 +579,7 @@ contract Vault is
      * @dev Return how many seconds until withdrawal unlock, return 0 if already unlocked
      * @return remainingTime Remaining time (seconds), 0 means ready to execute or no pending withdrawal
      */
-    function getRemainingWithdrawalTime()
-        external
-        view
-        returns (uint256 remainingTime)
-    {
+    function getRemainingWithdrawalTime() external view returns (uint256 remainingTime) {
         if (pendingWithdrawalAmount == 0 || withdrawalUnlockTime == 0) {
             return 0; // No pending withdrawal or unlock time not set
         }
@@ -728,9 +640,7 @@ contract Vault is
      * @dev Only admin can upgrade contract
      * @param newImplementation New implementation contract address
      */
-    function _authorizeUpgrade(
-        address newImplementation
-    ) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(DEFAULT_ADMIN_ROLE) {
         // Admin privileges are sufficient, no additional validation needed
     }
 
@@ -763,9 +673,7 @@ contract Vault is
      * @dev Only current admin can transfer, ensures single admin at all times
      * @param newAdmin New admin address
      */
-    function transferAdmin(
-        address newAdmin
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function transferAdmin(address newAdmin) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(newAdmin != address(0), "Vault: Invalid admin address");
         require(newAdmin != singleAdmin, "Vault: Already the admin");
 

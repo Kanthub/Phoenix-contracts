@@ -4,8 +4,7 @@ pragma solidity ^0.8.19;
 contract rPUSDStorage {
     /* ========== Role Definitions ========== */
     // Reward management role (mint/burn permissions)
-    bytes32 public constant REWARD_MANAGER_ROLE =
-        keccak256("REWARD_MANAGER_ROLE");
+    bytes32 public constant REWARD_MANAGER_ROLE = keccak256("REWARD_MANAGER_ROLE");
     // APY management role (only APY adjustment)
     bytes32 public constant APY_MANAGER_ROLE = keccak256("APY_MANAGER_ROLE");
     // Upgrade management role

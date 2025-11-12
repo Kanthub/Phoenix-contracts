@@ -29,8 +29,7 @@ abstract contract PUSDOracleStorage is IPUSDOracle {
 
     /* ========== Constants ========== */
 
-    bytes32 public constant PRICE_UPDATER_ROLE =
-        keccak256("PRICE_UPDATER_ROLE");
+    bytes32 public constant PRICE_UPDATER_ROLE = keccak256("PRICE_UPDATER_ROLE");
     bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
 
     uint256 public constant DEFAULT_PUSDUSD_PRICE = 1e18; // 1 PUSD = 1 USD

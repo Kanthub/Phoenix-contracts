@@ -14,17 +14,8 @@ interface IPUSDOracle {
     /* ========== Events ========== */
 
     event TokenAdded(address indexed token, address usdFeed);
-    event DebugPriceCheck(
-        int256 price,
-        uint256 updatedAt,
-        uint256 currentTime,
-        uint256 maxAge
-    );
-    event TokenPUSDPriceUpdated(
-        address indexed token,
-        uint256 newPrice,
-        uint256 oldPrice
-    );
+    event DebugPriceCheck(int256 price, uint256 updatedAt, uint256 currentTime, uint256 maxAge);
+    event TokenPUSDPriceUpdated(address indexed token, uint256 newPrice, uint256 oldPrice);
     event PUSDUSDPriceUpdated(uint256 pusdUsdPrice, uint256 timestamp);
     event PUSDDepegDetected(uint256 deviation, uint256 depegCount);
     event PUSDDepegPauseTriggered(uint256 deviation);
@@ -37,35 +28,20 @@ interface IPUSDOracle {
     function addToken(address token, address usdFeed) external;
 
     // ----------- Price updates -----------
-    function updateTokenPUSDPrice(
-        address token,
-        uint256 tokenPusdPrice
-    ) external;
+    function updateTokenPUSDPrice(address token, uint256 tokenPusdPrice) external;
 
-    function batchUpdateTokenPUSDPrices(
-        address[] calldata tokenList,
-        uint256[] calldata prices
-    ) external;
+    function batchUpdateTokenPUSDPrices(address[] calldata tokenList, uint256[] calldata prices) external;
 
     // ----------- Price queries -----------
-    function getPUSDUSDPrice()
-        external
-        view
-        returns (uint256 price, uint256 timestamp);
+    function getPUSDUSDPrice() external view returns (uint256 price, uint256 timestamp);
 
-    function getTokenPUSDPrice(
-        address token
-    ) external view returns (uint256 price, uint256 timestamp);
+    function getTokenPUSDPrice(address token) external view returns (uint256 price, uint256 timestamp);
 
-    function getTokenUSDPrice(
-        address token
-    ) external view returns (uint256 price, uint256 timestamp);
+    function getTokenUSDPrice(address token) external view returns (uint256 price, uint256 timestamp);
 
     function getSupportedTokens() external view returns (address[] memory);
 
-    function getTokenInfo(
-        address token
-    )
+    function getTokenInfo(address token)
         external
         view
         returns (address usdFeed, uint256 tokenPusdPrice, uint256 lastUpdated);
@@ -73,15 +49,9 @@ interface IPUSDOracle {
     // ----------- Depeg & maintenance -----------
     function checkPUSDDepeg() external;
 
-    function updateSystemParameters(
-        uint256 _maxPriceAge,
-        uint256 _heartbeatInterval
-    ) external;
+    function updateSystemParameters(uint256 _maxPriceAge, uint256 _heartbeatInterval) external;
 
-    function updateDepegThresholds(
-        uint256 _depegThreshold,
-        uint256 _recoveryThreshold
-    ) external;
+    function updateDepegThresholds(uint256 _depegThreshold, uint256 _recoveryThreshold) external;
 
     function emergencyDisableToken(address token) external;
 
