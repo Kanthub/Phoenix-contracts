@@ -6,23 +6,16 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "./PUSDStorage.sol";
 
-contract PUSDUpgradeable is
+contract PUSD is
     Initializable,
     ERC20Upgradeable,
     AccessControlUpgradeable,
     PausableUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    PUSDStorage
 {
-    uint256 public cap;
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-
-    // Lock status for MINTER_ROLE: once set to true, can never be modified
-    bool public minterRoleLocked;
-
-    // Reserved space for upgrades (49 slots reserved, 1 used by minterRoleLocked)
-    uint256[49] private __gap;
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();

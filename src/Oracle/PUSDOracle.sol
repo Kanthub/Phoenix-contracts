@@ -8,7 +8,8 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
-import "../Vault/Vault.sol";
+import "../interfaces/IPUSDOracle.sol";
+import "./PUSDOracleStorage.sol";
 
 /**
  * @title PUSDOracleUpgradeable
@@ -30,73 +31,10 @@ contract PUSDOracleUpgradeable is
     AccessControlUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable,
-    UUPSUpgradeable
+    UUPSUpgradeable,
+    IPUSDOracle,
+    PUSDOracleStorage
 {
-    /* ========== State Variables ========== */
-
-    // System contracts
-    VaultUpgradeable public vault;
-    address public pusdToken;
-
-    // Token management
-    struct TokenConfig {
-        address usdFeed; // Chainlink Token/USD price source
-        uint256 tokenPusdPrice; // Token/PUSD price (18 decimal places)
-        uint256 lastUpdated; // Last update time
-    }
-
-    mapping(address => TokenConfig) public tokens;
-    address[] public supportedTokens;
-
-    // System parameters
-    uint256 public maxPriceAge; // Price validity period
-    uint256 public heartbeatInterval; // Heartbeat interval
-    uint256 public lastHeartbeat; // Last heartbeat time
-
-    // PUSD global price
-    uint256 public pusdUsdPrice; // Current PUSD/USD price
-    uint256 public pusdPriceUpdated; // PUSD price last update time
-
-    // PUSD depeg detection
-    uint256 public pusdDepegThreshold; // Depeg threshold (basis points)
-    uint256 public pusdRecoveryThreshold; // Unpause threshold (basis points)
-    uint256 public pusdDepegCount; // Depeg count
-
-    /* ========== Constants ========== */
-
-    bytes32 public constant PRICE_UPDATER_ROLE =
-        keccak256("PRICE_UPDATER_ROLE");
-    bytes32 public constant UPGRADER_ROLE = keccak256("UPGRADER_ROLE");
-
-    uint256 public constant DEFAULT_PUSDUSD_PRICE = 1e18; // 1 PUSD = 1 USD
-    uint256 public constant DEFAULT_MAX_PRICE_AGE = 3600 * 24; // 24 hours
-    uint256 public constant DEFAULT_HEARTBEAT_INTERVAL = 3600; // 1 hour
-    uint256 public constant DEFAULT_DEPEG_THRESHOLD = 500; // 5%
-    uint256 public constant DEFAULT_RECOVERY_THRESHOLD = 200; // 2%
-    uint256 public constant MAX_DEPEG_COUNT = 2; // Maximum depeg count
-
-    uint256[40] private __gap;
-
-    /* ========== events ========== */
-
-    event TokenAdded(address indexed token, address usdFeed);
-    event DebugPriceCheck(
-        int256 price,
-        uint256 updatedAt,
-        uint256 currentTime,
-        uint256 maxAge
-    );
-    event TokenPUSDPriceUpdated(
-        address indexed token,
-        uint256 newPrice,
-        uint256 oldPrice
-    );
-    event PUSDUSDPriceUpdated(uint256 pusdUsdPrice, uint256 timestamp);
-    event PUSDDepegDetected(uint256 deviation, uint256 depegCount);
-    event PUSDDepegPauseTriggered(uint256 deviation);
-    event PUSDDepegRecovered();
-    event HeartbeatSent(uint256 timestamp);
-
     /* ========== initialize ========== */
 
     /// @custom:oz-upgrades-unsafe-allow constructor
@@ -117,7 +55,7 @@ contract PUSDOracleUpgradeable is
         require(_vault != address(0), "Invalid vault");
         require(_pusdToken != address(0), "Invalid PUSD");
 
-        vault = VaultUpgradeable(_vault);
+        vault = Vault(_vault);
         pusdToken = _pusdToken;
 
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
