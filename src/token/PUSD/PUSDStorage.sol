@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract PUSDStorage {
+import "../../interfaces/IPUSD.sol";
+
+abstract contract PUSDStorage is IPUSD {
     uint256 public cap;
     bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
 

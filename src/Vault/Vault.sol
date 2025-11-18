@@ -238,23 +238,43 @@ contract Vault is
     }
 
     /**
-     * @notice Propose large amount withdrawal
+     * @notice Propose batch large amount withdrawal
      * @dev Start 48-hour timelock protection mechanism for emergency or large fund allocation
      * @param to Withdrawal target address
-     * @param asset Withdrawal asset address
-     * @param amount Withdrawal amount
+     * @param assets Withdrawal asset addresses
+     * @param amounts Withdrawal amount corresponding to the assets addresses
      */
-    function proposeWithdrawal(address to, address asset, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function proposeWithdrawal(address to, address[] calldata assets, uint256[] calldata amounts) external onlyRole(DEFAULT_ADMIN_ROLE) {
         require(to != address(0), "Vault: Cannot withdraw to zero address");
-        require(supportedAssets[asset], "Vault: Unsupported asset");
-        require(IERC20(asset).balanceOf(address(this)) >= amount, "Vault: Insufficient funds for proposal");
-        require(pendingWithdrawalAmount == 0, "Vault: Pending withdrawal exists");
+        require(assets.length > 0, "Vault: Empty assets array");
+        require(amounts.length > 0, "Vault: Empty amounts array");
+        require(assets.length == amounts.length, "Vault: Assets and amounts length mismatch");
+        require(pendingWithdrawalRequests.length == 0, "Vault: Pending withdrawal exists");
 
-        pendingWithdrawalAmount = amount;
-        pendingWithdrawalAsset = asset;
+        for (uint256 i = 0; i < assets.length; i++) {
+            require(supportedAssets[assets[i]], "Vault: Unsupported asset");
+            require(amounts[i] > 0, "Vault: Amount must be greater than 0");
+            require(IERC20(assets[i]).balanceOf(address(this)) >= amounts[i], "Vault: Insufficient funds for proposal");
+
+            // Check duplicate asset
+            require(!_tempAssetCheck[assets[i]], "Vault: Duplicate asset");
+            _tempAssetCheck[assets[i]] = true;
+        }
+        
         pendingWithdrawalTo = to;
         withdrawalUnlockTime = block.timestamp + TIMELOCK_DELAY;
-        emit WithdrawalProposed(to, asset, amount, withdrawalUnlockTime);
+
+        // Push withdrawal requests
+        for (uint256 i = 0; i < assets.length; i++) {
+            pendingWithdrawalRequests.push(
+                WithdrawalRequest({
+                    asset: assets[i],
+                    amount: amounts[i]
+                })
+            );
+        }
+        
+        emit WithdrawalProposed(to, assets, amounts, withdrawalUnlockTime);
     }
 
     /**
@@ -262,22 +282,42 @@ contract Vault is
      * @dev Execute withdrawal operation after timelock expires
      */
     function executeWithdrawal() external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
+        require(withdrawalUnlockTime > 0, "Vault: No pending withdrawal");
         require(block.timestamp >= withdrawalUnlockTime, "Vault: Timelock has not expired");
-        require(pendingWithdrawalAmount > 0, "Vault: No pending withdrawal to execute");
+        require(pendingWithdrawalRequests.length > 0, "Vault: No pending withdrawal to execute");
 
-        uint256 amount = pendingWithdrawalAmount;
-        address asset = pendingWithdrawalAsset;
         address to = pendingWithdrawalTo;
+        uint256 requestCount = pendingWithdrawalRequests.length;
+
+        address[] memory assets = new address[](requestCount);
+        uint256[] memory amounts = new uint256[](requestCount);
+
+        // Execute withdrawal
+        for (uint256 i = 0; i < requestCount; i++) {
+            WithdrawalRequest memory request = pendingWithdrawalRequests[i];
+            
+            // Check balance
+            uint256 balance = IERC20(request.asset).balanceOf(address(this));
+            require(balance >= request.amount, "Vault: Insufficient balance at execution");
+
+            assets[i] = request.asset;
+            amounts[i] = request.amount;
+            
+            IERC20(request.asset).safeTransfer(to, request.amount);
+            emit TVLChanged(request.asset, IERC20(request.asset).balanceOf(address(this)));
+        }
+
+        // Clear mapping _tempAssetCheck
+        for (uint256 i = 0; i < requestCount; i++) {
+            delete _tempAssetCheck[pendingWithdrawalRequests[i].asset];
+        }
 
         // Clear pending withdrawal state
-        pendingWithdrawalAmount = 0;
-        pendingWithdrawalAsset = address(0);
+        delete pendingWithdrawalRequests;
         pendingWithdrawalTo = address(0);
         withdrawalUnlockTime = 0;
 
-        IERC20(asset).safeTransfer(to, amount);
-        emit WithdrawalExecuted(to, asset, amount);
-        emit TVLChanged(asset, IERC20(asset).balanceOf(address(this)));
+        emit WithdrawalExecuted(to, assets, amounts);
     }
 
     /**
@@ -285,17 +325,29 @@ contract Vault is
      * @dev Admin can cancel a pending withdrawal before it unlocks
      */
     function cancelWithdrawal() external onlyRole(DEFAULT_ADMIN_ROLE) {
-        require(pendingWithdrawalAmount > 0, "Vault: No pending withdrawal");
+        require(pendingWithdrawalRequests.length > 0, "Vault: No pending withdrawal");
 
-        address asset = pendingWithdrawalAsset;
-        uint256 amount = pendingWithdrawalAmount;
+        uint256 requestCount = pendingWithdrawalRequests.length;
 
-        pendingWithdrawalAmount = 0;
-        pendingWithdrawalAsset = address(0);
+        address[] memory assets = new address[](requestCount);
+        uint256[] memory amounts = new uint256[](requestCount);
+
+        for (uint256 i = 0; i < requestCount; i++) {
+            assets[i] = pendingWithdrawalRequests[i].asset;
+            amounts[i] = pendingWithdrawalRequests[i].amount;
+        }
+
+        // Clear mapping _tempAssetCheck
+        for (uint256 i = 0; i < requestCount; i++) {
+            delete _tempAssetCheck[pendingWithdrawalRequests[i].asset];
+        }
+
+        // Clear pending withdrawal state
+        delete pendingWithdrawalRequests;
         pendingWithdrawalTo = address(0);
         withdrawalUnlockTime = 0;
 
-        emit WithdrawalCancelled(msg.sender, asset, amount);
+        emit WithdrawalCancelled(msg.sender, assets, amounts);
     }
 
     /**
@@ -580,7 +632,7 @@ contract Vault is
      * @return remainingTime Remaining time (seconds), 0 means ready to execute or no pending withdrawal
      */
     function getRemainingWithdrawalTime() external view returns (uint256 remainingTime) {
-        if (pendingWithdrawalAmount == 0 || withdrawalUnlockTime == 0) {
+        if (pendingWithdrawalRequests.length == 0 || withdrawalUnlockTime == 0) {
             return 0; // No pending withdrawal or unlock time not set
         }
 
@@ -595,9 +647,9 @@ contract Vault is
      * @notice Get pending withdrawal status details
      * @dev Return complete information about current pending withdrawal
      * @return to Withdrawal target address
-     * @return asset Withdrawal asset address
-     * @return assetName Withdrawal asset name
-     * @return amount Withdrawal amount
+     * @return assets Withdrawal asset addresses
+     * @return assetNames Withdrawal asset names
+     * @return amounts Withdrawal amounts
      * @return unlockTime Unlock timestamp
      * @return remainingTime Remaining time (seconds)
      * @return canExecute Whether it can be executed
@@ -607,24 +659,42 @@ contract Vault is
         view
         returns (
             address to,
-            address asset,
-            string memory assetName,
-            uint256 amount,
+            address[] memory assets,
+            string[] memory assetNames,
+            uint256[] memory amounts,
             uint256 unlockTime,
             uint256 remainingTime,
             bool canExecute
         )
     {
-        to = pendingWithdrawalTo;
-        asset = pendingWithdrawalAsset;
-        assetName = assetNames[asset];
-        amount = pendingWithdrawalAmount;
-        unlockTime = withdrawalUnlockTime;
+        uint256 requestCount = pendingWithdrawalRequests.length;
 
-        if (amount == 0 || unlockTime == 0) {
-            remainingTime = 0;
-            canExecute = false;
-        } else if (block.timestamp >= unlockTime) {
+        if (requestCount == 0 || withdrawalUnlockTime == 0) {
+            return (
+                address(0), 
+                new address[](0), 
+                new string[](0), 
+                new uint256[](0), 
+                0, 
+                0, 
+                false
+            );
+        }
+
+        to = pendingWithdrawalTo;
+        unlockTime = withdrawalUnlockTime;
+        
+        assets = new address[](requestCount);
+        assetNames = new string[](requestCount);
+        amounts = new uint256[](requestCount);
+        
+        for (uint256 i = 0; i < requestCount; i++) {
+            assets[i] = pendingWithdrawalRequests[i].asset;
+            amounts[i] = pendingWithdrawalRequests[i].amount;
+            assetNames[i] = this.assetNames(assets[i]);
+        }
+        
+        if (block.timestamp >= unlockTime) {
             remainingTime = 0;
             canExecute = true;
         } else {
