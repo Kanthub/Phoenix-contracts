@@ -16,7 +16,7 @@ interface IVault {
 
     function isValidAsset(address asset) external view returns (bool);
 
-    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount);
+    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount, uint256 referenceTimestamp);
 
     function getPUSDAssetValue(address asset, uint256 pusdAmount) external view returns (uint256 amount);
 

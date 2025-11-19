@@ -32,14 +32,7 @@ import {FarmStorage} from "./FarmStorage.sol";
  * 4. Automatic yield reinvestment
  * 5. Flexible withdrawal mechanism
  */
-contract FarmUpgradeable is
-    Initializable,
-    AccessControlUpgradeable,
-    ReentrancyGuardUpgradeable,
-    PausableUpgradeable,
-    UUPSUpgradeable,
-    FarmStorage
-{
+contract FarmUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyGuardUpgradeable, PausableUpgradeable, UUPSUpgradeable, FarmStorage {
     using SafeERC20 for IERC20;
 
     /* ========== Constructor and Initialization ========== */
@@ -93,8 +86,9 @@ contract FarmUpgradeable is
     function depositAsset(address asset, uint256 amount) external nonReentrant whenNotPaused {
         require(vault.isValidAsset(asset), "Unsupported asset");
         // Here amount is asset quantity, not USD, need to convert to pusd amount
-        uint256 pusdAmount = vault.getTokenPUSDValue(asset, amount);
+        (uint256 pusdAmount, uint256 referenceTimestamp) = vault.getTokenPUSDValue(asset, amount);
         require(pusdAmount > 0, "Invalid deposit amount");
+        require(block.timestamp - referenceTimestamp <= HEALTH_CHECK_TIMEOUT, "Oracle data outdated");
 
         require(pusdAmount >= minDepositAmount * (10 ** pusdToken.decimals()), "Amount below minimum");
 
@@ -146,7 +140,7 @@ contract FarmUpgradeable is
         require(assetAmount > 0, "Invalid withdrawal amount");
 
         // Check if Vault has sufficient asset balance
-        (uint256 vaultBalance,) = vault.getTVL(asset);
+        (uint256 vaultBalance, ) = vault.getTVL(asset);
         require(vaultBalance >= assetAmount, "Insufficient vault balance");
 
         UserAssetInfo storage userInfo = userAssets[msg.sender];
@@ -242,12 +236,7 @@ contract FarmUpgradeable is
      * @param lockPeriod Lock period (5-180 days)
      * @return stakeId Record ID for this stake
      */
-    function stakePUSD(uint256 amount, uint256 lockPeriod)
-        external
-        nonReentrant
-        whenNotPaused
-        returns (uint256 stakeId)
-    {
+    function stakePUSD(uint256 amount, uint256 lockPeriod) external nonReentrant whenNotPaused returns (uint256 stakeId) {
         require(amount >= minLockAmount * (10 ** pusdToken.decimals()), "Stake amount too small");
 
         // Verify if lock period is supported
@@ -257,10 +246,7 @@ contract FarmUpgradeable is
         require(pusdToken.balanceOf(msg.sender) >= amount, "Insufficient PUSD balance");
 
         // Check if user has authorized sufficient PUSD to Farm contract
-        require(
-            IERC20(address(pusdToken)).allowance(msg.sender, address(this)) >= amount,
-            "Insufficient PUSD allowance. Please approve Farm contract first"
-        );
+        require(IERC20(address(pusdToken)).allowance(msg.sender, address(this)) >= amount, "Insufficient PUSD allowance. Please approve Farm contract first");
 
         // Directly burn PUSD from user address to avoid contract token holding risks
         pusdToken.burn(msg.sender, amount);
@@ -275,14 +261,7 @@ contract FarmUpgradeable is
         for (uint256 i = 0; i < stakes.length; i++) {
             if (!stakes[i].active) {
                 // Reuse this inactive slot
-                stakes[i] = StakeRecord({
-                    amount: amount,
-                    startTime: block.timestamp,
-                    lockPeriod: lockPeriod,
-                    lastClaimTime: block.timestamp,
-                    rewardMultiplier: multiplier,
-                    active: true
-                });
+                stakes[i] = StakeRecord({amount: amount, startTime: block.timestamp, lockPeriod: lockPeriod, lastClaimTime: block.timestamp, rewardMultiplier: multiplier, active: true});
                 stakeId = i;
                 break;
             }
@@ -291,21 +270,9 @@ contract FarmUpgradeable is
         // If no inactive slot found, create new record
         if (stakeId == type(uint256).max) {
             // Check user stake quantity limit only when creating new slot
-            require(
-                stakes.length < maxStakesPerUser,
-                "Maximum active stakes reached. Please unstake an existing position first or use a different address"
-            );
+            require(stakes.length < maxStakesPerUser, "Maximum active stakes reached. Please unstake an existing position first or use a different address");
 
-            stakes.push(
-                StakeRecord({
-                    amount: amount,
-                    startTime: block.timestamp,
-                    lockPeriod: lockPeriod,
-                    lastClaimTime: block.timestamp,
-                    rewardMultiplier: multiplier,
-                    active: true
-                })
-            );
+            stakes.push(StakeRecord({amount: amount, startTime: block.timestamp, lockPeriod: lockPeriod, lastClaimTime: block.timestamp, rewardMultiplier: multiplier, active: true}));
             stakeId = stakes.length - 1;
         }
 
@@ -490,11 +457,7 @@ contract FarmUpgradeable is
      * @return result Query result
      * @return reason Validation failure reason (used when queryType=3)
      */
-    function getStakeInfo(address account, uint256 queryType, uint256 stakeId, uint256 amount)
-        external
-        view
-        returns (uint256 result, string memory reason)
-    {
+    function getStakeInfo(address account, uint256 queryType, uint256 stakeId, uint256 amount) external view returns (uint256 result, string memory reason) {
         if (queryType == 0) {
             // Get total rewards
             StakeRecord[] storage stakes = userStakeRecords[account];
@@ -591,9 +554,7 @@ contract FarmUpgradeable is
         // Cap calculation window at unlockTime (no rewards after unlock)
         uint256 effectiveEnd = toTime <= unlockTime ? toTime : unlockTime;
 
-        return _calculateRewardWithHistory(
-            stakeRecord.amount, stakeRecord.lastClaimTime, effectiveEnd, stakeRecord.rewardMultiplier
-        );
+        return _calculateRewardWithHistory(stakeRecord.amount, stakeRecord.lastClaimTime, effectiveEnd, stakeRecord.rewardMultiplier);
     }
 
     /**
@@ -604,11 +565,7 @@ contract FarmUpgradeable is
      * @param multiplier Reward multiplier
      * @return Calculated yield
      */
-    function _calculateRewardWithHistory(uint256 amount, uint256 fromTime, uint256 toTime, uint16 multiplier)
-        internal
-        view
-        returns (uint256)
-    {
+    function _calculateRewardWithHistory(uint256 amount, uint256 fromTime, uint256 toTime, uint16 multiplier) internal view returns (uint256) {
         if (fromTime >= toTime || amount == 0) {
             return 0;
         }
@@ -654,11 +611,7 @@ contract FarmUpgradeable is
      * @param multiplier Reward multiplier
      * @return Calculated yield
      */
-    function _calculateSegmentReward(uint256 amount, uint256 apy, uint256 duration, uint16 multiplier)
-        internal
-        pure
-        returns (uint256)
-    {
+    function _calculateSegmentReward(uint256 amount, uint256 apy, uint256 duration, uint16 multiplier) internal pure returns (uint256) {
         if (duration == 0 || amount == 0) {
             return 0;
         }
@@ -685,11 +638,7 @@ contract FarmUpgradeable is
      * @return lockPeriods Array of supported lock periods (in seconds)
      * @return multipliers Array of corresponding multipliers (basis points)
      */
-    function getSupportedLockPeriodsWithMultipliers()
-        external
-        view
-        returns (uint256[] memory lockPeriods, uint16[] memory multipliers)
-    {
+    function getSupportedLockPeriodsWithMultipliers() external view returns (uint256[] memory lockPeriods, uint16[] memory multipliers) {
         lockPeriods = supportedLockPeriods;
         multipliers = new uint16[](lockPeriods.length);
 
@@ -708,18 +657,7 @@ contract FarmUpgradeable is
      * @return totalStakeRewards Total pending rewards
      * @return activeStakeCount Active stake record count
      */
-    function getUserInfo(address user)
-        external
-        view
-        returns (
-            uint256 pusdBalance,
-            uint256 ypusdBalance,
-            uint256 totalDeposited,
-            uint256 totalStakedAmount,
-            uint256 totalStakeRewards,
-            uint256 activeStakeCount
-        )
-    {
+    function getUserInfo(address user) external view returns (uint256 pusdBalance, uint256 ypusdBalance, uint256 totalDeposited, uint256 totalStakedAmount, uint256 totalStakeRewards, uint256 activeStakeCount) {
         UserAssetInfo storage info = userAssets[user];
 
         // Calculate total amount and rewards for all active stakes
@@ -756,24 +694,12 @@ contract FarmUpgradeable is
      * @return isUnlocked Whether already unlocked
      * @return remainingTime Remaining lock time
      */
-    function getStakeDetails(address user, uint256 stakeId)
-        external
-        view
-        returns (
-            StakeRecord memory stakeRecord,
-            uint256 pendingReward,
-            uint256 unlockTime,
-            bool isUnlocked,
-            uint256 remainingTime
-        )
-    {
+    function getStakeDetails(address user, uint256 stakeId) external view returns (StakeRecord memory stakeRecord, uint256 pendingReward, uint256 unlockTime, bool isUnlocked, uint256 remainingTime) {
         stakeRecord = userStakeRecords[user][stakeId];
         require(stakeRecord.active, "Stake record not found or inactive");
 
         // Calculate rewards using snapshot method
-        pendingReward = _calculateRewardWithHistory(
-            stakeRecord.amount, stakeRecord.lastClaimTime, block.timestamp, stakeRecord.rewardMultiplier
-        );
+        pendingReward = _calculateRewardWithHistory(stakeRecord.amount, stakeRecord.lastClaimTime, block.timestamp, stakeRecord.rewardMultiplier);
 
         unlockTime = stakeRecord.startTime + stakeRecord.lockPeriod;
         isUnlocked = block.timestamp >= unlockTime;
@@ -791,11 +717,7 @@ contract FarmUpgradeable is
      * @return totalCount Total record count (matching conditions)
      * @return hasMore Whether there are more records
      */
-    function getUserStakeDetails(address user, uint256 offset, uint256 limit, bool activeOnly, uint256 lockPeriod)
-        external
-        view
-        returns (StakeDetail[] memory stakeDetails, uint256 totalCount, bool hasMore)
-    {
+    function getUserStakeDetails(address user, uint256 offset, uint256 limit, bool activeOnly, uint256 lockPeriod) external view returns (StakeDetail[] memory stakeDetails, uint256 totalCount, bool hasMore) {
         StakeRecord[] storage stakes = userStakeRecords[user];
 
         // Limit single query quantity to prevent gas overflow
@@ -890,10 +812,7 @@ contract FarmUpgradeable is
      * @param lockPeriods Array of lock periods (in seconds)
      * @param multipliers Array of corresponding multipliers (basis points, range: 5000-50000, i.e., 0.5x-5.0x)
      */
-    function batchSetLockPeriodMultipliers(uint256[] calldata lockPeriods, uint16[] calldata multipliers)
-        external
-        onlyRole(OPERATOR_ROLE)
-    {
+    function batchSetLockPeriodMultipliers(uint256[] calldata lockPeriods, uint16[] calldata multipliers) external onlyRole(OPERATOR_ROLE) {
         require(lockPeriods.length == multipliers.length, "Array length mismatch");
         require(lockPeriods.length > 0, "Empty arrays");
 

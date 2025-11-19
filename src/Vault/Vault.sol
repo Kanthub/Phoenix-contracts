@@ -32,14 +32,7 @@ import "./VaultStorage.sol";
  * - Timelock large amount withdrawal protection
  * - Oracle offline detection and automatic pause
  */
-contract Vault is
-    Initializable,
-    AccessControlUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable,
-    UUPSUpgradeable,
-    VaultStorage
-{
+contract Vault is Initializable, AccessControlUpgradeable, PausableUpgradeable, ReentrancyGuardUpgradeable, UUPSUpgradeable, VaultStorage {
     using SafeERC20 for IERC20;
 
     /* ========== Constructor and Initialization ========== */
@@ -260,20 +253,15 @@ contract Vault is
             require(!_tempAssetCheck[assets[i]], "Vault: Duplicate asset");
             _tempAssetCheck[assets[i]] = true;
         }
-        
+
         pendingWithdrawalTo = to;
         withdrawalUnlockTime = block.timestamp + TIMELOCK_DELAY;
 
         // Push withdrawal requests
         for (uint256 i = 0; i < assets.length; i++) {
-            pendingWithdrawalRequests.push(
-                WithdrawalRequest({
-                    asset: assets[i],
-                    amount: amounts[i]
-                })
-            );
+            pendingWithdrawalRequests.push(WithdrawalRequest({asset: assets[i], amount: amounts[i]}));
         }
-        
+
         emit WithdrawalProposed(to, assets, amounts, withdrawalUnlockTime);
     }
 
@@ -295,14 +283,14 @@ contract Vault is
         // Execute withdrawal
         for (uint256 i = 0; i < requestCount; i++) {
             WithdrawalRequest memory request = pendingWithdrawalRequests[i];
-            
+
             // Check balance
             uint256 balance = IERC20(request.asset).balanceOf(address(this));
             require(balance >= request.amount, "Vault: Insufficient balance at execution");
 
             assets[i] = request.asset;
             amounts[i] = request.amount;
-            
+
             IERC20(request.asset).safeTransfer(to, request.amount);
             emit TVLChanged(request.asset, IERC20(request.asset).balanceOf(address(this)));
         }
@@ -354,11 +342,7 @@ contract Vault is
      * @notice Emergency rescue for non-supported tokens mistakenly sent to the vault
      * @dev Only for NON-supported assets. Supported assets must use timelock withdrawal.
      */
-    function emergencySweep(address token, address to, uint256 amount)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        nonReentrant
-    {
+    function emergencySweep(address token, address to, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         require(token != address(0) && to != address(0), "Vault: Zero address");
         require(!supportedAssets[token], "Vault: Use timelock for supported asset");
         require(token != pusdToken, "Vault: Cannot sweep PUSD");
@@ -491,21 +475,22 @@ contract Vault is
      * @return pusdAmount Corresponding PUSD amount (6 decimal places)
      * @dev Directly obtain Token/PUSD price through Oracle for conversion, transaction fails if price retrieval fails
      */
-    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount) {
+    function getTokenPUSDValue(address asset, uint256 amount) external view returns (uint256 pusdAmount, uint256 referenceTimestamp) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
         require(amount > 0, "Vault: Amount must be greater than 0");
         require(oracleManager != address(0), "Vault: Oracle not set");
 
         // Must get price from Oracle, fail if no price
-        (uint256 tokenPusdPrice,) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
+        (uint256 tokenPusdPrice, uint256 lastTimestamp) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
         require(tokenPusdPrice > 0, "Vault: Invalid token price");
 
         // Get asset decimal places
         uint8 assetDecimals = IERC20Metadata(asset).decimals();
 
-        // Calculate PUSD amount: amount * tokenPusdPrice / (10 ** assetDecimals)
+        // Calculate PUSD amount: amount * tokenPusdPrice / (10 ** (assetDecimals + 12))
         // tokenPusdPrice is 18 decimal places, amount is raw asset amount, result converted to 6 decimal places
         pusdAmount = (amount * tokenPusdPrice) / (10 ** (assetDecimals + 12));
+        referenceTimestamp = lastTimestamp;
     }
 
     /**
@@ -520,7 +505,7 @@ contract Vault is
         require(oracleManager != address(0), "Vault: Oracle not set");
 
         // Must get price from Oracle, fail if no price
-        (uint256 tokenPusdPrice,) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
+        (uint256 tokenPusdPrice, ) = IPUSDOracle(oracleManager).getTokenPUSDPrice(asset);
         require(tokenPusdPrice > 0, "Vault: Invalid token price");
 
         // Get asset decimal places
@@ -541,11 +526,7 @@ contract Vault is
      * @dev Frontend usage: assetAmount / (10 ** assetDecimals) to get real amount
      *      Frontend usage: usdAmount / 1e18 to get real USD value
      */
-    function getFormattedTVL(address asset)
-        external
-        view
-        returns (uint256 assetAmount, uint256 usdAmount, uint8 assetDecimals, string memory assetSymbol)
-    {
+    function getFormattedTVL(address asset) external view returns (uint256 assetAmount, uint256 usdAmount, uint8 assetDecimals, string memory assetSymbol) {
         require(supportedAssets[asset], "Vault: Unsupported asset");
 
         (uint256 tvl, uint256 marketValue) = this.getTVL(asset);
@@ -654,46 +635,26 @@ contract Vault is
      * @return remainingTime Remaining time (seconds)
      * @return canExecute Whether it can be executed
      */
-    function getPendingWithdrawalInfo()
-        external
-        view
-        returns (
-            address to,
-            address[] memory assets,
-            string[] memory assetNames,
-            uint256[] memory amounts,
-            uint256 unlockTime,
-            uint256 remainingTime,
-            bool canExecute
-        )
-    {
+    function getPendingWithdrawalInfo() external view returns (address to, address[] memory assets, string[] memory assetNames, uint256[] memory amounts, uint256 unlockTime, uint256 remainingTime, bool canExecute) {
         uint256 requestCount = pendingWithdrawalRequests.length;
 
         if (requestCount == 0 || withdrawalUnlockTime == 0) {
-            return (
-                address(0), 
-                new address[](0), 
-                new string[](0), 
-                new uint256[](0), 
-                0, 
-                0, 
-                false
-            );
+            return (address(0), new address[](0), new string[](0), new uint256[](0), 0, 0, false);
         }
 
         to = pendingWithdrawalTo;
         unlockTime = withdrawalUnlockTime;
-        
+
         assets = new address[](requestCount);
         assetNames = new string[](requestCount);
         amounts = new uint256[](requestCount);
-        
+
         for (uint256 i = 0; i < requestCount; i++) {
             assets[i] = pendingWithdrawalRequests[i].asset;
             amounts[i] = pendingWithdrawalRequests[i].amount;
             assetNames[i] = this.assetNames(assets[i]);
         }
-        
+
         if (block.timestamp >= unlockTime) {
             remainingTime = 0;
             canExecute = true;
