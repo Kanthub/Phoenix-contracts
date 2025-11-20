@@ -6,44 +6,14 @@ import "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol"
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "../../interfaces/IFarm.sol";
+import {NFTManagerStorage} from "./NFTManagerStorage.sol";
 
 /**
  * @title NFTManager
  * @notice Each NFT represents a single staking record. Metadata is stored on-chain and can be edited by authorized accounts.
  */
-contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable, OwnableUpgradeable {
-    // ---------- Roles ----------
-    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
-    bytes32 public constant METADATA_EDITOR_ROLE = keccak256("METADATA_EDITOR_ROLE");
-    address public farm;
-
-    // ---------- Staking Metadata Structure ----------
-    struct StakeRecord {
-        uint256 amount; // Amount staked
-        uint64 startTime; // Staking start timestamp
-        uint64 lockPeriod; // Locking period length
-        uint64 lastClaimTime; // Last reward claim time
-        uint256 rewardMultiplier; // Reward multiplier
-        bool active; // Whether the stake/NFT is active
-        uint256 pendingReward; // Unclaimed reward
-    }
-
-    // tokenId => StakeRecord
-    mapping(uint256 => StakeRecord) private _stakeRecords;
-
-    // Optional: On-chain tokenURI storage
-    mapping(uint256 => string) private _tokenURIs;
-    string private _baseTokenURI;
-
-    uint256 private _tokenIdTracker;
-
-    // ---------- Events ----------
-    event StakeNFTMinted(uint256 indexed tokenId, address indexed owner, uint256 amount, uint64 startTime, uint64 lockPeriod, uint256 rewardMultiplier, uint256 pendingReward);
-
-    event StakeRecordUpdated(uint256 indexed tokenId, uint256 amount, uint64 lastClaimTime, uint256 rewardMultiplier, bool active, uint256 pendingReward);
-
-    event BaseURIUpdated(string newBaseURI);
-    event MinterRoleLocked(address indexed account, address indexed admin);
+contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUpgradeable, UUPSUpgradeable, OwnableUpgradeable, NFTManagerStorage {
     // ---------- Modifiers ----------
     modifier onlyEditor() {
         require(hasRole(METADATA_EDITOR_ROLE, _msgSender()) || _msgSender() == owner(), "NFTManager: not authorized to edit metadata");
@@ -52,6 +22,16 @@ contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUp
 
     modifier onlyMinter() {
         require(hasRole(MINTER_ROLE, _msgSender()) || _msgSender() == owner(), "NFTManager: not authorized to mint");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(hasRole(DEFAULT_ADMIN_ROLE, _msgSender()) || _msgSender() == owner(), "NFTManager: not admin");
+        _;
+    }
+
+    modifier onlyFarm() {
+        require(_msgSender() == farm, "NFTManager: only farm can call");
         _;
     }
 
@@ -72,16 +52,16 @@ contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUp
     // ---------- Core: Mint Stake NFT ----------
     /**
      * @notice Mint a new NFT representing a staking record.
-     * @dev Stores a StakeRecord in on-chain metadata.
+     * @dev Stores a IFarm.StakeRecord in on-chain metadata.
      */
-    function mintStakeNFT(address to, uint256 amount, uint64 lockPeriod, uint256 rewardMultiplier, uint256 pendingReward) external onlyMinter returns (uint256) {
+    function mintStakeNFT(address to, uint256 amount, uint64 lockPeriod, uint16 rewardMultiplier, uint256 pendingReward) external onlyMinter returns (uint256) {
         uint256 tokenId = _nextTokenId();
 
         _safeMint(to, tokenId);
 
         uint64 currentTime = uint64(block.timestamp);
 
-        _stakeRecords[tokenId] = StakeRecord({amount: amount, startTime: currentTime, lockPeriod: lockPeriod, lastClaimTime: currentTime, rewardMultiplier: rewardMultiplier, active: true, pendingReward: pendingReward});
+        _stakeRecords[tokenId] = IFarm.StakeRecord({amount: amount, startTime: currentTime, lockPeriod: lockPeriod, lastClaimTime: currentTime, rewardMultiplier: rewardMultiplier, active: true, pendingReward: pendingReward});
 
         emit StakeNFTMinted(tokenId, to, amount, currentTime, lockPeriod, rewardMultiplier, pendingReward);
 
@@ -93,10 +73,10 @@ contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUp
      * @notice Edit full staking metadata of a token.
      * @dev Only metadata editors or owner/approved addresses can call this.
      */
-    function updateStakeRecord(uint256 tokenId, uint256 amount, uint64 lastClaimTime, uint256 rewardMultiplier, bool active, uint256 pendingReward) external onlyEditor {
+    function updateStakeRecord(uint256 tokenId, uint256 amount, uint64 lastClaimTime, uint16 rewardMultiplier, bool active, uint256 pendingReward) external onlyEditor {
         _requireOwned(tokenId);
 
-        StakeRecord storage r = _stakeRecords[tokenId];
+        IFarm.StakeRecord storage r = _stakeRecords[tokenId];
 
         r.amount = amount;
         r.lastClaimTime = lastClaimTime;
@@ -113,14 +93,19 @@ contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUp
     function updateRewardInfo(uint256 tokenId, uint256 pendingReward, uint64 lastClaimTime) external onlyEditor {
         _requireOwned(tokenId);
 
-        StakeRecord storage r = _stakeRecords[tokenId];
+        IFarm.StakeRecord storage r = _stakeRecords[tokenId];
         r.pendingReward = pendingReward;
         r.lastClaimTime = lastClaimTime;
         emit StakeRecordUpdated(tokenId, r.amount, r.lastClaimTime, r.rewardMultiplier, r.active, r.pendingReward);
     }
 
+    function updateStakeRecord(uint256 tokenId, IFarm.StakeRecord calldata newRecord) external onlyFarm {
+        _requireOwned(tokenId);
+        _stakeRecords[tokenId] = newRecord;
+    }
+
     // ---------- Views ----------
-    function getStakeRecord(uint256 tokenId) external view returns (StakeRecord memory) {
+    function getStakeRecord(uint256 tokenId) external view returns (IFarm.StakeRecord memory) {
         _requireOwned(tokenId);
         return _stakeRecords[tokenId];
     }
@@ -159,6 +144,11 @@ contract NFTManager is Initializable, ERC721BurnableUpgradeable, AccessControlUp
         }
 
         return uri;
+    }
+
+    // ---------- exists  ----------
+    function exists(uint256 tokenId) public view returns (bool) {
+        return _ownerOf(tokenId) != address(0);
     }
 
     // ---------- Burn ----------

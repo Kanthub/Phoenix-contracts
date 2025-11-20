@@ -27,4 +27,6 @@ interface IVault {
     function unpause() external view returns (bool);
 
     function heartbeat() external;
+
+    function withdrawPUSDTo(address user, uint256 amount) external;
 }
