@@ -72,6 +72,7 @@ interface IFarm {
     event LockPeriodAdded(uint256 indexed lockPeriod, uint16 multiplier);
     event LockPeriodRemoved(uint256 indexed lockPeriod);
     event NFTManagerUpdated(address indexed nftManager);
+    event FarmLendUpdated(address indexed farmLend);
 
     /* ========== Core External Functions ========== */
 
@@ -114,6 +115,8 @@ interface IFarm {
     function updateSystemConfig(uint256 configType, uint256 newValue) external;
 
     function setFeeRates(uint256 _depositFeeRate, uint256 _withdrawFeeRate) external;
+
+    function updateByFarmLend(uint256 tokenId, uint256 pusdAmount) external;
 
     function pause() external;
 

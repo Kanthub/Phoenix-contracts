@@ -895,6 +895,21 @@ contract FarmUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyG
         emit LockPeriodRemoved(lockPeriod);
     }
 
+    function updateByFarmLend(uint256 tokenId, uint256 pusdAmount) public {
+        require(msg.sender == farmLend, "Unauthorized caller");
+        NFTManager nftManager = NFTManager(_nftManager);
+        IFarm.StakeRecord memory record = nftManager.getStakeRecord(tokenId);
+        require(record.amount >= pusdAmount, "Insufficient stake amount");
+        uint256 reward = _calculateStakeReward(record);
+        // Update last claim time
+        record.lastClaimTime = block.timestamp;
+        // Update pending reward
+        record.pendingReward += reward;
+        // Update stake amount
+        record.amount = pusdAmount;
+        nftManager.updateStakeRecord(tokenId, record);
+    }
+
     /* ========== PUSD Bridge Functions ========== */
 
     /* ========== System Configuration Management ========== */
@@ -950,6 +965,12 @@ contract FarmUpgradeable is Initializable, AccessControlUpgradeable, ReentrancyG
         require(nftManager_ != address(0), "Invalid NFT manager address");
         _nftManager = nftManager_;
         emit NFTManagerUpdated(nftManager_);
+    }
+
+    function setFarmLend(address farmLend_) external onlyRole(OPERATOR_ROLE) {
+        require(farmLend_ != address(0), "Invalid FarmLend address");
+        farmLend = farmLend_;
+        emit FarmLendUpdated(farmLend_);
     }
 
     /**
